@@ -1,0 +1,38 @@
+{
+  "name": "coffee-price-openclaw",
+  "version": "0.1.0",
+  "description": "OpenClaw WeChat coffee price helper for nearby delivery and pickup comparisons.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "build": "tsc",
+    "plugin:build": "npm run build && openclaw plugins build --entry ./dist/openclaw-plugin.js",
+    "plugin:validate": "openclaw plugins validate --root . --entry ./dist/openclaw-plugin.js",
+    "coffee": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "typebox": "^1.2.17"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "openclaw": "^2026.6.8",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/openclaw-plugin.js"
+    ]
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md",
+    "config"
+  ]
+}

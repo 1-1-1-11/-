@@ -1,0 +1,30 @@
+{
+  "defaultAddressAlias": "公司",
+  "addresses": [
+    {
+      "alias": "公司",
+      "label": "公司",
+      "query": "深圳南山区科技园"
+    },
+    {
+      "alias": "家",
+      "label": "家",
+      "query": "深圳福田区中心区"
+    }
+  ],
+  "browserProfilePath": ".runtime/browser-profile",
+  "brands": [
+    { "name": "瑞幸", "enabled": true },
+    { "name": "库迪", "enabled": true },
+    { "name": "星巴克", "enabled": true },
+    { "name": "Tims", "enabled": true },
+    { "name": "Manner", "enabled": true },
+    { "name": "M Stand", "enabled": true },
+    { "name": "Peet's", "enabled": true }
+  ],
+  "sources": {
+    "meituan": true,
+    "eleme": true,
+    "brandOfficial": true
+  }
+}

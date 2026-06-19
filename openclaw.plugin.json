@@ -1,0 +1,40 @@
+{
+  "id": "coffee-price",
+  "name": "Coffee Price Search",
+  "description": "Search nearby chain coffee delivery and pickup prices, then return a WeChat-ready ranking.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "configPath": {
+        "type": "string",
+        "description": "Local coffee price config path. Defaults to config/coffee-price.config.json."
+      },
+      "snapshotPaths": {
+        "type": "object",
+        "properties": {
+          "meituan": {
+            "type": "string",
+            "description": "Optional Meituan snapshot JSON path."
+          },
+          "eleme": {
+            "type": "string",
+            "description": "Optional Eleme snapshot JSON path."
+          },
+          "brandOfficial": {
+            "type": "string",
+            "description": "Optional brand official snapshot JSON path."
+          }
+        }
+      }
+    }
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "coffee_price.search"
+    ]
+  }
+}

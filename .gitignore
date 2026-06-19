@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.runtime/
+coverage/
+npm-debug.log*
+
+config/coffee-price.config.json
+config/snapshots/*.json
+!config/snapshots/*.example.json
+
+*.local

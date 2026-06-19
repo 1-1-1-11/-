@@ -1,0 +1,38 @@
+{
+  "source": "meituan",
+  "offers": [
+    {
+      "brand": "库迪",
+      "storeName": "库迪 科技园店",
+      "drinkName": "冰美式",
+      "normalizedDrink": "americano",
+      "size": "中杯",
+      "fulfillment": "delivery",
+      "itemPrice": 9.9,
+      "quantity": 1,
+      "deliveryFee": 2,
+      "packagingFee": 1,
+      "discounts": [
+        { "label": "平台券", "amount": 3 }
+      ],
+      "distanceText": "600m",
+      "etaText": "28分钟",
+      "purchaseUrl": "https://example.com/meituan/cotti"
+    },
+    {
+      "brand": "瑞幸",
+      "storeName": "瑞幸 科技园店",
+      "drinkName": "冰美式",
+      "normalizedDrink": "americano",
+      "size": "中杯",
+      "fulfillment": "pickup",
+      "itemPrice": 12.9,
+      "quantity": 1,
+      "discounts": [
+        { "label": "品牌券", "amount": 6 }
+      ],
+      "distanceText": "500m",
+      "purchaseUrl": "https://example.com/meituan/luckin-pickup"
+    }
+  ]
+}
