@@ -2,6 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 export type DoctorStatus = "pass" | "warn" | "fail";
 
@@ -27,6 +28,7 @@ export interface DoctorFacts {
   };
   pathExists: Record<string, boolean>;
   gatewayStatusText?: string;
+  gatewayWrapperText?: string;
   weixinCapabilitiesText?: string;
   ilinkProbe?: {
     ok: boolean;
@@ -65,6 +67,7 @@ interface OpenClawJson {
 export function buildDoctorReport(facts: DoctorFacts): DoctorReport {
   const checks = [
     checkGateway(facts.gatewayStatusText),
+    checkGatewayPreload(facts.gatewayWrapperText),
     checkCoffeeConfigPath(facts),
     checkMeituanSnapshotPath(facts),
     checkWeixinPlugin(facts),
@@ -98,8 +101,9 @@ export async function collectDoctorFacts(): Promise<DoctorFacts> {
     Boolean(value)
   );
 
-  const [gatewayStatus, weixinCapabilities, ilinkProbe, pathExists] = await Promise.all([
+  const [gatewayStatus, gatewayWrapperText, weixinCapabilities, ilinkProbe, pathExists] = await Promise.all([
     runOpenClaw(["gateway", "status"]),
+    readGatewayWrapper(),
     runOpenClaw(["channels", "capabilities", "--channel", "openclaw-weixin"]),
     probeIlinkTls(),
     checkPaths(paths)
@@ -114,6 +118,7 @@ export async function collectDoctorFacts(): Promise<DoctorFacts> {
     },
     pathExists,
     gatewayStatusText: gatewayStatus.stdout + gatewayStatus.stderr,
+    gatewayWrapperText,
     weixinCapabilitiesText: weixinCapabilities.stdout + weixinCapabilities.stderr,
     ilinkProbe
   };
@@ -142,6 +147,21 @@ function checkGateway(text: string | undefined): DoctorCheck {
     return pass("gateway", "OpenClaw Gateway", "运行中，127.0.0.1:18789 可连接");
   }
   return fail("gateway", "OpenClaw Gateway", "Gateway 未通过连接探测", compact(text));
+}
+
+function checkGatewayPreload(text: string | undefined): DoctorCheck {
+  if (!text) {
+    return fail("gateway-preload", "Gateway iLink DNS preload", "没有读取到 OpenClaw Gateway wrapper");
+  }
+  if (/openclaw-network-preload\.mjs/i.test(text) && /NODE_OPTIONS/i.test(text)) {
+    return pass("gateway-preload", "Gateway iLink DNS preload", "Gateway 会加载 iLink DNS 修正 preload");
+  }
+  return fail(
+    "gateway-preload",
+    "Gateway iLink DNS preload",
+    "Gateway wrapper 未加载 iLink DNS 修正 preload",
+    "重新运行 .\\scripts\\install-openclaw-wechat.ps1"
+  );
 }
 
 function checkCoffeeConfigPath(facts: DoctorFacts): DoctorCheck {
@@ -271,23 +291,36 @@ async function checkPaths(paths: string[]): Promise<Record<string, boolean>> {
 }
 
 async function probeIlinkTls(): Promise<NonNullable<DoctorFacts["ilinkProbe"]>> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  const preloadUrl = pathToFileURL(join(process.cwd(), "scripts", "openclaw-network-preload.mjs")).href;
+  const script = [
+    "fetch('https://ilinkai.weixin.qq.com')",
+    ".then((response)=>{ console.log('ILINK_STATUS ' + response.status); })",
+    ".catch((error)=>{",
+    "const cause = error && error.cause;",
+    "console.log('ILINK_ERROR ' + (cause && cause.code ? cause.code + ': ' : '') + (cause && cause.message ? cause.message : error.message));",
+    "process.exitCode = 1;",
+    "})"
+  ].join("");
+  const result = await runProcess(process.execPath, ["--import", preloadUrl, "-e", script], 15_000);
+  const output = `${result.stdout}${result.stderr}`.trim();
+  const statusMatch = output.match(/ILINK_STATUS\s+(\d+)/);
+  if (result.exitCode === 0 && statusMatch?.[1]) {
+    return { ok: true, status: Number.parseInt(statusMatch[1], 10) };
+  }
+  const errorText = output.match(/ILINK_ERROR\s+(.+)/)?.[1] ?? (output || "iLink probe failed");
+  const codeMatch = errorText.match(/^([A-Z0-9_]+):\s+(.+)$/);
+  return {
+    ok: false,
+    code: codeMatch?.[1],
+    error: codeMatch?.[2] ?? errorText
+  };
+}
+
+async function readGatewayWrapper(): Promise<string | undefined> {
   try {
-    const response = await fetch("https://ilinkai.weixin.qq.com", {
-      method: "HEAD",
-      signal: controller.signal
-    });
-    return { ok: true, status: response.status };
-  } catch (error) {
-    const cause = error instanceof Error ? (error.cause as Error & { code?: string } | undefined) : undefined;
-    return {
-      ok: false,
-      error: cause?.message ?? (error instanceof Error ? error.message : String(error)),
-      code: cause?.code
-    };
-  } finally {
-    clearTimeout(timeout);
+    return await readFile(join(homedir(), ".openclaw", "gateway.cmd"), "utf8");
+  } catch {
+    return undefined;
   }
 }
 
@@ -311,6 +344,38 @@ function runOpenClaw(args: string[]): Promise<{ stdout: string; stderr: string; 
       resolve(fallback);
     });
     child.on("close", (exitCode) => {
+      resolve({ stdout, stderr, exitCode });
+    });
+  });
+}
+
+function runProcess(
+  file: string,
+  args: string[],
+  timeoutMs: number
+): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+  return new Promise((resolve) => {
+    const child = spawn(file, args, {
+      shell: false,
+      windowsHide: true
+    });
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill();
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      resolve({ stdout, stderr: `${stderr}${error.message}`, exitCode: 1 });
+    });
+    child.on("close", (exitCode) => {
+      clearTimeout(timeout);
       resolve({ stdout, stderr, exitCode });
     });
   });

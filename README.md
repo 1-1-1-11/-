@@ -61,6 +61,14 @@ npm run plugin:validate
 脚本会安装 OpenClaw CLI、安装本项目 `coffee-price` 插件、安装 `@tencent-weixin/openclaw-weixin`、启用 `openclaw-weixin` channel，并在 `-Login` 时启动微信 QR 登录。
 因为当前项目路径包含中文，脚本会创建 `C:\Users\32299\.openclaw\coffee-price-project` 这个 ASCII junction，并修复 OpenClaw Gateway 的 Scheduled Task wrapper，避免 Windows `.cmd` 把中文路径写成乱码。
 
+如果首次安装时微信 QR 登录没有打开，重新运行这个专用登录脚本：
+
+```powershell
+.\scripts\start-weixin-login.ps1
+```
+
+它会为当前登录命令注入 `scripts/openclaw-network-preload.mjs`，避免本机 TUN/fake-ip DNS 把 `ilinkai.weixin.qq.com` 解析到 `198.18.*` 后导致 TLS 重置。
+
 OpenClaw 官方文档当前说明微信 channel 是外部插件，支持私聊和媒体，群聊能力未在插件能力元数据中声明。因此本项目第一版按微信私聊设计。
 
 ## OpenClaw 插件配置

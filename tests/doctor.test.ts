@@ -14,6 +14,7 @@ test("doctor report fails on mojibake config paths, unconfigured Weixin, and iLi
     pathExists: {},
     gatewayStatusText:
       "Runtime: running\nConnectivity probe: ok\nListening: 127.0.0.1:18789\n",
+    gatewayWrapperText: "@echo off\nset \"NODE_OPTIONS=--import=file:///C:/Users/32299/.openclaw/coffee-price-project/scripts/openclaw-network-preload.mjs\"\n",
     weixinCapabilitiesText:
       "openclaw-weixin default\nSupport: chatTypes=direct media blockStreaming\nStatus: not configured, enabled\n",
     ilinkProbe: {
@@ -25,6 +26,7 @@ test("doctor report fails on mojibake config paths, unconfigured Weixin, and iLi
 
   assert.equal(report.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "gateway")?.status, "pass");
+  assert.equal(report.checks.find((check) => check.id === "gateway-preload")?.status, "pass");
   assert.equal(report.checks.find((check) => check.id === "coffee-config-path")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "weixin-login")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "ilink-tls")?.status, "fail");
@@ -48,6 +50,7 @@ test("doctor report passes when runtime paths, Weixin login, and iLink TLS are h
     },
     gatewayStatusText:
       "Runtime: running\nConnectivity probe: ok\nListening: 127.0.0.1:18789\n",
+    gatewayWrapperText: "@echo off\nset \"NODE_OPTIONS=--import=file:///C:/Users/32299/.openclaw/coffee-price-project/scripts/openclaw-network-preload.mjs\"\n",
     weixinCapabilitiesText:
       "openclaw-weixin default\nSupport: chatTypes=direct media blockStreaming\nStatus: configured, enabled\n",
     ilinkProbe: { ok: true, status: 200 }

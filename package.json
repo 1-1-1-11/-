@@ -17,7 +17,8 @@
   "dependencies": {
     "cheerio": "^1.2.0",
     "playwright-core": "^1.61.0",
-    "typebox": "^1.2.17"
+    "typebox": "^1.2.17",
+    "undici": "^8.5.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

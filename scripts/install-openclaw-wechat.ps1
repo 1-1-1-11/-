@@ -10,6 +10,9 @@ $CoffeeConfigPath = Join-Path $AsciiProjectRoot "config\coffee-price.config.json
 $CoffeeExampleConfigPath = Join-Path $AsciiProjectRoot "config\coffee-price.config.example.json"
 $CoffeeSnapshotPath = Join-Path $AsciiProjectRoot "config\snapshots\meituan.json"
 $CoffeeExampleSnapshotPath = Join-Path $AsciiProjectRoot "config\snapshots\meituan.example.json"
+$NetworkPreloadPath = Join-Path $AsciiProjectRoot "scripts\openclaw-network-preload.mjs"
+$NetworkPreloadUrl = ([System.Uri]$NetworkPreloadPath).AbsoluteUri
+$OpenClawWeixinNodeOptions = "--import=$NetworkPreloadUrl"
 
 function Test-Command($Name) {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
@@ -20,6 +23,24 @@ function Invoke-OpenClaw {
     & openclaw @args
   } else {
     & npx openclaw @args
+  }
+}
+
+function Invoke-OpenClawWithNetworkPreload {
+  $previousNodeOptions = $env:NODE_OPTIONS
+  if ($previousNodeOptions) {
+    $env:NODE_OPTIONS = "$OpenClawWeixinNodeOptions $previousNodeOptions"
+  } else {
+    $env:NODE_OPTIONS = $OpenClawWeixinNodeOptions
+  }
+  try {
+    Invoke-OpenClaw @args
+  } finally {
+    if ($null -eq $previousNodeOptions) {
+      Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
+    } else {
+      $env:NODE_OPTIONS = $previousNodeOptions
+    }
   }
 }
 
@@ -48,6 +69,8 @@ set "OPENCLAW_WINDOWS_TASK_NAME=OpenClaw Gateway"
 set "OPENCLAW_SERVICE_MARKER=openclaw"
 set "OPENCLAW_SERVICE_KIND=gateway"
 set "OPENCLAW_SERVICE_VERSION=2026.6.8"
+set "OPENCLAW_WEIXIN_NODE_OPTIONS=$OpenClawWeixinNodeOptions"
+set "NODE_OPTIONS=$OpenClawWeixinNodeOptions"
 "C:\Program Files\nodejs\node.exe" "$openclawEntry" gateway --port $GatewayPort
 "@
   Set-Content -LiteralPath $gatewayScript -Value $content -Encoding ascii
@@ -63,11 +86,6 @@ if (-not (Test-Command "npm")) {
 
 $nodeVersion = (& node --version).Trim()
 Write-Host "Node: $nodeVersion"
-
-if (-not (Test-Command "openclaw")) {
-  Write-Host "Installing OpenClaw CLI globally with npm..."
-  npm install -g openclaw@latest
-}
 
 Write-Host "OpenClaw:"
 Invoke-OpenClaw --version
@@ -116,10 +134,10 @@ Invoke-OpenClaw channels status --probe
 
 if ($Login) {
   Write-Host "Starting Weixin QR login..."
-  Invoke-OpenClaw channels login --channel openclaw-weixin
+  Invoke-OpenClawWithNetworkPreload channels login --channel openclaw-weixin
 } else {
   Write-Host "Run this when ready to scan QR login:"
-  Write-Host "openclaw channels login --channel openclaw-weixin"
+  Write-Host "`$env:NODE_OPTIONS='$OpenClawWeixinNodeOptions'; openclaw channels login --channel openclaw-weixin"
 }
 
 Write-Host "If Windows cannot find openclaw after npm install, run:"
