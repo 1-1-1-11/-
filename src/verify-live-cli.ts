@@ -16,6 +16,7 @@ export interface VerifyLiveCliOptions {
   configPath: string;
   auditPaths: Record<keyof SourceConfig, string>;
   calibrationReportPath: string;
+  ignoreCalibrationReport: boolean;
   skipDoctor: boolean;
 }
 
@@ -45,6 +46,7 @@ export function parseVerifyLiveCliArgs(args: string[]): VerifyLiveCliOptions {
       brandOfficial: readOption(args, "--audit-brand") ?? defaultAuditPath("brandOfficial")
     },
     calibrationReportPath: readOption(args, "--calibration-report") ?? DEFAULT_CALIBRATION_REPORT_PATH,
+    ignoreCalibrationReport: args.includes("--ignore-calibration-report"),
     skipDoctor: args.includes("--skip-doctor")
   };
 }
@@ -57,14 +59,15 @@ export async function runVerifyLiveCli(
   const config = await (deps.readConfig ?? readConfig)(options.configPath);
   const doctor = options.skipDoctor ? undefined : await (deps.runDoctor ?? runDoctor)();
   const readAudit = deps.readAudit ?? readAuditFile;
-  const readCalibrationReport = deps.readCalibrationReport ?? readCalibrationReportFile;
   const audits: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>> = {};
 
   for (const source of SOURCE_KEYS) {
     audits[source] = await readAudit(options.auditPaths[source]);
   }
 
-  const calibrationReport = await readCalibrationReport(options.calibrationReportPath);
+  const calibrationReport = options.ignoreCalibrationReport
+    ? null
+    : await (deps.readCalibrationReport ?? readCalibrationReportFile)(options.calibrationReportPath);
   const report = buildLiveReadinessReport({ config, doctor, audits, calibrationReport });
   return {
     text: formatLiveReadinessReport(report),
