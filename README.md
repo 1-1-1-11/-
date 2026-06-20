@@ -24,6 +24,14 @@ Copy-Item config/coffee-price.config.example.json config/coffee-price.config.jso
 
 编辑 `config/coffee-price.config.json`，把 `addresses` 改成你的常用地址。
 
+如果配置里还没有 `browserSources`，可以先生成三个启用渠道的 selector 模板：
+
+```powershell
+npm run config:scaffold -- --config config/coffee-price.config.json --write
+```
+
+脚手架只补缺失渠道，不覆盖已有 selector；生成的 `example.com` 入口 URL 必须在真实平台校准后替换。
+
 注意：这里说的 `powershell` 是 Windows PowerShell 5.1。如果你用 PowerShell 7，命令入口通常是 `pwsh`，脚本本身两者都可以运行。
 
 ## 本地验证
@@ -147,6 +155,7 @@ npm run capture -- "查公司附近冰美式" --source meituan --html .runtime/c
 npm test
 npm run typecheck
 npm run build
+npm run config:scaffold -- --config config/coffee-price.config.json --write
 npm run doctor
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
 npm run verify:live
