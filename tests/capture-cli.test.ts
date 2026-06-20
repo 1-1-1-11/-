@@ -21,6 +21,19 @@ test("parses capture CLI options and default output paths", () => {
   assert.equal(parsed.snapshotPath, ".runtime/captures/meituan.snapshot.json");
   assert.equal(parsed.auditPath, ".runtime/captures/meituan.audit.json");
   assert.equal(parsed.manualWaitMs, 120000);
+  assert.equal(parsed.entryUrlOverride, undefined);
+});
+
+test("parses capture CLI entry URL override", () => {
+  const parsed = parseCaptureCliArgs([
+    "查公司附近冰美式",
+    "--source",
+    "meituan",
+    "--url",
+    "https://example.com/manual"
+  ]);
+
+  assert.equal(parsed.entryUrlOverride, "https://example.com/manual");
 });
 
 test("rejects unsupported capture sources", () => {

@@ -38,6 +38,7 @@ export interface CaptureBrowserSourceInput {
   htmlPath: string;
   snapshotPath: string;
   auditPath?: string;
+  entryUrlOverride?: string;
   manualWaitMs?: number;
   pageLoader?: BrowserPageLoader;
 }
@@ -62,7 +63,7 @@ export async function captureBrowserSource(
     throw new Error(`没有配置 ${input.source} 的 browserSources，无法捕获页面`);
   }
 
-  const entryUrl = buildEntryUrl(spec, { address, query });
+  const entryUrl = input.entryUrlOverride ?? buildEntryUrl(spec, { address, query });
   const loader = input.pageLoader ?? loadPageWithPersistentProfile;
   const page = await loader({
     url: entryUrl,

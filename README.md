@@ -135,6 +135,12 @@ npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 12000
 npm run capture -- "查公司附近冰美式" --source meituan --html .runtime/captures/meituan.html --snapshot config/snapshots/meituan.live.json --audit .runtime/captures/meituan.audit.json
 ```
 
+如果现场已经在浏览器里打开了真实平台页面，可以先不改配置，临时覆盖入口 URL：
+
+```powershell
+npm run capture -- "查公司附近冰美式" --source meituan --url "https://example.com/replace-with-real-platform-page" --manual-ms 120000
+```
+
 捕获工具只保存页面内容、解析结果和 selector 诊断，不会保存密码，也不会绕过验证码。页面结构变化时，优先用新捕获的 HTML 调整 `browserSources.<source>.selectors`。`*.audit.json` 用来定位选择器问题：先看 `statusMatches` 是否命中登录/验证码/无货，再看 `offerRows.count` 是否为 0，最后看每一行的 `missingRequiredFields`。
 
 ## 购买页自动打开

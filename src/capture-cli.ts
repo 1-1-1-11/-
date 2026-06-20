@@ -9,6 +9,7 @@ export interface CaptureCliOptions {
   htmlPath: string;
   snapshotPath: string;
   auditPath: string;
+  entryUrlOverride?: string;
   manualWaitMs?: number;
 }
 
@@ -32,6 +33,7 @@ export function parseCaptureCliArgs(args: string[]): CaptureCliOptions {
     htmlPath: readOption(args, "--html") ?? defaultPaths.htmlPath,
     snapshotPath: readOption(args, "--snapshot") ?? defaultPaths.snapshotPath,
     auditPath: readOption(args, "--audit") ?? defaultPaths.auditPath,
+    entryUrlOverride: readOption(args, "--url"),
     manualWaitMs
   };
 }
@@ -70,6 +72,7 @@ function toCaptureInput(options: CaptureCliOptions): CaptureBrowserSourceInput {
     htmlPath: options.htmlPath,
     snapshotPath: options.snapshotPath,
     auditPath: options.auditPath,
+    entryUrlOverride: options.entryUrlOverride,
     manualWaitMs: options.manualWaitMs
   };
 }
@@ -122,6 +125,7 @@ function usage(): string {
     "  --html <path>        默认 .runtime/captures/<source>.html",
     "  --snapshot <path>    默认 .runtime/captures/<source>.snapshot.json",
     "  --audit <path>       默认 .runtime/captures/<source>.audit.json",
+    "  --url <url>          临时覆盖 browserSources.<source>.entryUrl",
     "  --manual-ms <ms>     打开页面后等待人工登录/处理验证码的毫秒数"
   ].join("\n");
 }
