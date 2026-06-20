@@ -1,4 +1,5 @@
 import type { DoctorReport, DoctorStatus } from "./doctor.js";
+import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
 import type { BrowserSourceSpec, CoffeePriceConfig, SourceConfig } from "./types.js";
@@ -29,6 +30,7 @@ export interface BuildLiveReadinessReportInput {
   config: CoffeePriceConfig;
   doctor?: DoctorReport;
   audits?: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>>;
+  networkLogs?: Partial<Record<keyof SourceConfig, BrowserNetworkLogEntry[] | null>>;
   calibrationReport?: CaptureCalibrationReport | null;
 }
 
@@ -54,7 +56,7 @@ export function buildLiveReadinessReport(
     if (spec) {
       checks.push(checkSourceUrl(source, spec.entryUrl));
     }
-    checks.push(checkSourceAudit(source, input.audits?.[source]));
+    checks.push(checkSourceAudit(source, input.audits?.[source], input.networkLogs?.[source]));
   }
 
   return {
@@ -86,6 +88,10 @@ export function formatLiveReadinessReport(report: LiveReadinessReport): string {
 
 export function defaultAuditPath(source: keyof SourceConfig): string {
   return `.runtime/captures/${source}.audit.json`;
+}
+
+export function defaultNetworkPath(source: keyof SourceConfig): string {
+  return `.runtime/captures/${source}.network.json`;
 }
 
 function checkDoctor(doctor: DoctorReport | undefined): LiveReadinessCheck {
@@ -164,7 +170,8 @@ function checkSourceUrl(source: keyof SourceConfig, entryUrl: string): LiveReadi
 
 function checkSourceAudit(
   source: keyof SourceConfig,
-  audit: BrowserSourceSelectorAudit | null | undefined
+  audit: BrowserSourceSelectorAudit | null | undefined,
+  networkLog: BrowserNetworkLogEntry[] | null | undefined
 ): LiveReadinessCheck {
   if (!audit) {
     return fail(
@@ -180,7 +187,8 @@ function checkSourceAudit(
     return fail(
       `source-${source}-audit`,
       `${source} selector 诊断`,
-      `页面命中不可报价状态: ${statusHits.map(([name]) => name).join(", ")}`
+      `页面命中不可报价状态: ${statusHits.map(([name]) => name).join(", ")}`,
+      summarizeNetworkFailures(networkLog)
     );
   }
 
@@ -188,7 +196,8 @@ function checkSourceAudit(
     return fail(
       `source-${source}-audit`,
       `${source} selector 诊断`,
-      "offerRows 没有命中任何候选行"
+      "offerRows 没有命中任何候选行",
+      summarizeNetworkFailures(networkLog)
     );
   }
 
@@ -210,6 +219,28 @@ function checkSourceAudit(
     `${source} selector 诊断`,
     `已捕获 ${audit.offerRows.count} 行可解析候选`
   );
+}
+
+function summarizeNetworkFailures(
+  networkLog: BrowserNetworkLogEntry[] | null | undefined
+): string | undefined {
+  const failures = (networkLog ?? []).filter(
+    (entry) => entry.event === "requestfailed" || (entry.status ?? 0) >= 400
+  );
+  if (failures.length === 0) {
+    return undefined;
+  }
+  const preview = failures
+    .slice(0, 3)
+    .map((entry) => {
+      if (entry.event === "requestfailed") {
+        return `requestfailed ${entry.failureText ?? "unknown"} ${entry.method} ${entry.url}`;
+      }
+      const status = [entry.status, entry.statusText].filter(Boolean).join(" ");
+      return `${status} ${entry.method} ${entry.url}`;
+    })
+    .join("; ");
+  return `网络异常 ${failures.length} 条: ${preview}`;
 }
 
 function summarizeStatus(checks: LiveReadinessCheck[]): DoctorStatus {

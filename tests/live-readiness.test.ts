@@ -5,6 +5,7 @@ import {
   buildLiveReadinessReport,
   formatLiveReadinessReport
 } from "../src/live-readiness.js";
+import type { BrowserNetworkLogEntry } from "../src/browser-capture.js";
 import type { CaptureCalibrationReport } from "../src/capture-calibrate.js";
 import type { BrowserSourceSelectorAudit } from "../src/providers/browser-source-provider.js";
 import type { CoffeePriceConfig } from "../src/types.js";
@@ -231,4 +232,43 @@ test("live readiness fails when captured rows miss required pricing fields", () 
 
   assert.equal(report.status, "fail");
   assert.match(report.checks.find((check) => check.id === "source-meituan-audit")?.message ?? "", /itemPrice/);
+});
+
+test("live readiness includes network failures when captured page is not quoteable", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    browserSources: {
+      meituan: {
+        ...baseConfig.browserSources!.meituan!,
+        entryUrl: "https://meituan.example.invalid/search?q={{drink}}"
+      }
+    }
+  };
+  const audit: BrowserSourceSelectorAudit = {
+    source: "meituan",
+    statusMatches: { loginRequired: 0, captchaRequired: 0, noStock: 0, unavailable: 1 },
+    offerRows: { selector: "[data-offer]", count: 0 },
+    rows: []
+  };
+  const networkLog: BrowserNetworkLogEntry[] = [
+    {
+      event: "response",
+      status: 403,
+      statusText: "Forbidden",
+      method: "POST",
+      resourceType: "xhr",
+      url: "https://i.waimai.meituan.com/openh5/search/globalpage?<redacted>"
+    }
+  ];
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: { meituan: audit },
+    networkLogs: { meituan: networkLog }
+  });
+  const check = report.checks.find((candidate) => candidate.id === "source-meituan-audit");
+
+  assert.match(check?.detail ?? "", /403 Forbidden/);
+  assert.match(check?.detail ?? "", /globalpage/);
 });

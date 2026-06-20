@@ -59,6 +59,8 @@ test("parses live verification CLI defaults and audit overrides", () => {
     "config/live.json",
     "--audit-meituan",
     ".runtime/live/meituan.audit.json",
+    "--network-meituan",
+    ".runtime/live/meituan.network.json",
     "--calibration-report",
     ".runtime/live/calibration-report.json",
     "--ignore-calibration-report",
@@ -69,6 +71,8 @@ test("parses live verification CLI defaults and audit overrides", () => {
   assert.equal(parsed.configPath, "config/live.json");
   assert.equal(parsed.auditPaths.meituan, ".runtime/live/meituan.audit.json");
   assert.equal(parsed.auditPaths.eleme, ".runtime/captures/eleme.audit.json");
+  assert.equal(parsed.networkPaths.meituan, ".runtime/live/meituan.network.json");
+  assert.equal(parsed.networkPaths.eleme, ".runtime/captures/eleme.network.json");
   assert.equal(parsed.calibrationReportPath, ".runtime/live/calibration-report.json");
   assert.equal(parsed.ignoreCalibrationReport, true);
   assert.equal(parsed.outputFormat, "json");
@@ -86,6 +90,7 @@ test("live verification CLI returns a passing report from injected healthy depen
     readConfig: async () => config,
     runDoctor: async () => ({ status: "pass", checks: [] }),
     readAudit: async () => audit,
+    readNetworkLog: async () => null,
     readCalibrationReport: async () => null
   });
 
@@ -113,6 +118,7 @@ test("live verification CLI includes failed calibration report details", async (
     readConfig: async () => config,
     runDoctor: async () => ({ status: "pass", checks: [] }),
     readAudit: async () => audit,
+    readNetworkLog: async () => null,
     readCalibrationReport: async () => calibrationReport
   });
 
@@ -142,6 +148,7 @@ test("live verification CLI can ignore a stale calibration report", async () => 
     readConfig: async () => config,
     runDoctor: async () => ({ status: "pass", checks: [] }),
     readAudit: async () => audit,
+    readNetworkLog: async () => null,
     readCalibrationReport: async () => {
       readCalibrationReportCalled = true;
       return calibrationReport;
@@ -159,6 +166,7 @@ test("live verification CLI can emit a machine-readable JSON report", async () =
     readConfig: async () => config,
     runDoctor: async () => ({ status: "pass", checks: [] }),
     readAudit: async () => audit,
+    readNetworkLog: async () => null,
     readCalibrationReport: async () => null
   });
 

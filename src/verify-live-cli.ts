@@ -5,8 +5,10 @@ import { runDoctor } from "./doctor.js";
 import {
   buildLiveReadinessReport,
   defaultAuditPath,
+  defaultNetworkPath,
   formatLiveReadinessReport
 } from "./live-readiness.js";
+import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { DoctorReport } from "./doctor.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
@@ -15,6 +17,7 @@ import type { CoffeePriceConfig, SourceConfig } from "./types.js";
 export interface VerifyLiveCliOptions {
   configPath: string;
   auditPaths: Record<keyof SourceConfig, string>;
+  networkPaths: Record<keyof SourceConfig, string>;
   calibrationReportPath: string;
   ignoreCalibrationReport: boolean;
   outputFormat: "text" | "json";
@@ -31,6 +34,7 @@ export interface VerifyLiveCliDeps {
   readConfig?: (path: string) => Promise<CoffeePriceConfig>;
   runDoctor?: () => Promise<DoctorReport>;
   readAudit?: (path: string) => Promise<BrowserSourceSelectorAudit | null>;
+  readNetworkLog?: (path: string) => Promise<BrowserNetworkLogEntry[] | null>;
   readCalibrationReport?: (path: string) => Promise<CaptureCalibrationReport | null>;
 }
 
@@ -45,6 +49,11 @@ export function parseVerifyLiveCliArgs(args: string[]): VerifyLiveCliOptions {
       meituan: readOption(args, "--audit-meituan") ?? defaultAuditPath("meituan"),
       eleme: readOption(args, "--audit-eleme") ?? defaultAuditPath("eleme"),
       brandOfficial: readOption(args, "--audit-brand") ?? defaultAuditPath("brandOfficial")
+    },
+    networkPaths: {
+      meituan: readOption(args, "--network-meituan") ?? defaultNetworkPath("meituan"),
+      eleme: readOption(args, "--network-eleme") ?? defaultNetworkPath("eleme"),
+      brandOfficial: readOption(args, "--network-brand") ?? defaultNetworkPath("brandOfficial")
     },
     calibrationReportPath: readOption(args, "--calibration-report") ?? DEFAULT_CALIBRATION_REPORT_PATH,
     ignoreCalibrationReport: args.includes("--ignore-calibration-report"),
@@ -61,16 +70,19 @@ export async function runVerifyLiveCli(
   const config = await (deps.readConfig ?? readConfig)(options.configPath);
   const doctor = options.skipDoctor ? undefined : await (deps.runDoctor ?? runDoctor)();
   const readAudit = deps.readAudit ?? readAuditFile;
+  const readNetworkLog = deps.readNetworkLog ?? readNetworkLogFile;
   const audits: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>> = {};
+  const networkLogs: Partial<Record<keyof SourceConfig, BrowserNetworkLogEntry[] | null>> = {};
 
   for (const source of SOURCE_KEYS) {
     audits[source] = await readAudit(options.auditPaths[source]);
+    networkLogs[source] = await readNetworkLog(options.networkPaths[source]);
   }
 
   const calibrationReport = options.ignoreCalibrationReport
     ? null
     : await (deps.readCalibrationReport ?? readCalibrationReportFile)(options.calibrationReportPath);
-  const report = buildLiveReadinessReport({ config, doctor, audits, calibrationReport });
+  const report = buildLiveReadinessReport({ config, doctor, audits, networkLogs, calibrationReport });
   return {
     text: options.outputFormat === "json"
       ? `${JSON.stringify(report, null, 2)}\n`
@@ -91,6 +103,14 @@ function readOption(args: string[], name: string): string | undefined {
 async function readAuditFile(path: string): Promise<BrowserSourceSelectorAudit | null> {
   try {
     return JSON.parse(await readFile(path, "utf8")) as BrowserSourceSelectorAudit;
+  } catch {
+    return null;
+  }
+}
+
+async function readNetworkLogFile(path: string): Promise<BrowserNetworkLogEntry[] | null> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as BrowserNetworkLogEntry[];
   } catch {
     return null;
   }
