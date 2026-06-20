@@ -33,6 +33,7 @@ export interface CoffeePriceConfig {
   defaultAddressAlias: string;
   addresses: AddressConfig[];
   browserProfilePath: string;
+  openLowestPurchasePage?: boolean;
   brands: BrandConfig[];
   sources: SourceConfig;
   browserSources?: BrowserSourcesConfig;

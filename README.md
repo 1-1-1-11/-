@@ -11,6 +11,7 @@
 - 本地配置读取：地址、品牌池、渠道开关、独立浏览器 profile 路径
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序
 - 浏览器页面提取器：用独立 profile 打开页面，按 CSS 选择器识别登录/验证码/无货，并提取价格候选
+- 最低价购买页打开：配置开启后会在本机默认浏览器打开最低价候选的 `http/https` 购买页
 - 外卖和自取分别 Top 3，价格包含商品、配送、包装和优惠拆解
 - 本地 CLI：`npm run coffee -- "查公司附近冰美式" --config config/coffee-price.config.json`
 
@@ -80,6 +81,18 @@ openclaw gateway restart
 入口 URL 支持模板变量：`{{addressQuery}}`、`{{addressAlias}}`、`{{drink}}`、`{{normalizedDrink}}`、`{{quantity}}`、`{{size}}`、`{{temperature}}`。
 
 真实平台页面需要登录后用浏览器检查 DOM，再把选择器填入 `config/coffee-price.config.json`。如果页面出现验证码或登录失效，工具会返回明确原因，不会继续猜价。
+
+## 购买页自动打开
+
+`openLowestPurchasePage` 控制是否在查价后打开最低价候选的购买页。示例配置默认开启：
+
+```json
+{
+  "openLowestPurchasePage": true
+}
+```
+
+工具只会打开价格榜单中最低的安全 `http/https` 链接；如果最低价候选没有购买链接，或链接是 `javascript:`、`file:` 等非网页 scheme，会跳过并尝试下一个可打开候选。打开页面只负责跳转到购买页，不会自动提交订单。
 
 ## 开发命令
 

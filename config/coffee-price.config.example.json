@@ -13,6 +13,7 @@
     }
   ],
   "browserProfilePath": ".runtime/browser-profile",
+  "openLowestPurchasePage": true,
   "brands": [
     { "name": "瑞幸", "enabled": true },
     { "name": "库迪", "enabled": true },

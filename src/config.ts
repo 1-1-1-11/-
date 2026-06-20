@@ -11,8 +11,12 @@ const DEFAULT_SOURCES: SourceConfig = {
 };
 
 export async function readConfig(configPath: string): Promise<CoffeePriceConfig> {
-  const raw = JSON.parse(await readFile(configPath, "utf8")) as Partial<CoffeePriceConfig>;
+  const raw = JSON.parse(stripJsonBom(await readFile(configPath, "utf8"))) as Partial<CoffeePriceConfig>;
   return normalizeConfig(raw);
+}
+
+function stripJsonBom(content: string): string {
+  return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
 }
 
 export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceConfig {
@@ -20,6 +24,7 @@ export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceCon
     defaultAddressAlias: raw.defaultAddressAlias ?? raw.addresses?.[0]?.alias ?? "默认",
     addresses: raw.addresses ?? [],
     browserProfilePath: raw.browserProfilePath ?? ".runtime/browser-profile",
+    openLowestPurchasePage: raw.openLowestPurchasePage ?? false,
     brands: normalizeBrands(raw.brands),
     sources: { ...DEFAULT_SOURCES, ...(raw.sources ?? {}) },
     browserSources: raw.browserSources ?? {}
