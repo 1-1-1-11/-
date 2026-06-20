@@ -50,20 +50,21 @@ npm run plugin:validate
 .\scripts\install-openclaw-wechat.ps1 -Login
 ```
 
-脚本会安装 OpenClaw CLI、安装 `@tencent-weixin/openclaw-weixin`、启用 `openclaw-weixin` channel，并在 `-Login` 时启动微信 QR 登录。
+脚本会安装 OpenClaw CLI、安装本项目 `coffee-price` 插件、安装 `@tencent-weixin/openclaw-weixin`、启用 `openclaw-weixin` channel，并在 `-Login` 时启动微信 QR 登录。
 因为当前项目路径包含中文，脚本会创建 `C:\Users\32299\.openclaw\coffee-price-project` 这个 ASCII junction，并修复 OpenClaw Gateway 的 Scheduled Task wrapper，避免 Windows `.cmd` 把中文路径写成乱码。
 
 OpenClaw 官方文档当前说明微信 channel 是外部插件，支持私聊和媒体，群聊能力未在插件能力元数据中声明。因此本项目第一版按微信私聊设计。
 
 ## OpenClaw 插件配置
 
-把本项目作为本地插件安装后，为插件配置本地路径：
+推荐直接使用上面的安装脚本。手动配置时，不要把中文项目路径写进 OpenClaw 配置；使用脚本创建的 ASCII junction 路径：
 
 ```powershell
-openclaw plugins install .
+openclaw plugins install C:\Users\32299\.openclaw\coffee-price-project --force
 openclaw config set plugins.entries.coffee-price.enabled true
-openclaw config set plugins.entries.coffee-price.config.configPath "D:\Desktop\自动查价\config\coffee-price.config.json"
-openclaw config set plugins.entries.coffee-price.config.snapshotPaths.meituan "D:\Desktop\自动查价\config\snapshots\meituan.json"
+openclaw config set plugins.entries.coffee-price.config.configPath "C:\Users\32299\.openclaw\coffee-price-project\config\coffee-price.config.json"
+openclaw config set plugins.entries.coffee-price.config.snapshotPaths.meituan "C:\Users\32299\.openclaw\coffee-price-project\config\snapshots\meituan.json"
+openclaw config set session.dmScope per-account-channel-peer
 openclaw gateway restart
 ```
 

@@ -6,6 +6,10 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $AsciiProjectRoot = Join-Path $HOME ".openclaw\coffee-price-project"
 $GatewayPort = "18789"
+$CoffeeConfigPath = Join-Path $AsciiProjectRoot "config\coffee-price.config.json"
+$CoffeeExampleConfigPath = Join-Path $AsciiProjectRoot "config\coffee-price.config.example.json"
+$CoffeeSnapshotPath = Join-Path $AsciiProjectRoot "config\snapshots\meituan.json"
+$CoffeeExampleSnapshotPath = Join-Path $AsciiProjectRoot "config\snapshots\meituan.example.json"
 
 function Test-Command($Name) {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
@@ -71,9 +75,30 @@ Invoke-OpenClaw --version
 Write-Host "Preparing ASCII project path for Windows Scheduled Task..."
 Ensure-AsciiProjectJunction
 
+if (-not (Test-Path -LiteralPath $CoffeeConfigPath) -and (Test-Path -LiteralPath $CoffeeExampleConfigPath)) {
+  Write-Host "Creating coffee-price.config.json from example..."
+  Copy-Item -LiteralPath $CoffeeExampleConfigPath -Destination $CoffeeConfigPath
+}
+if (-not (Test-Path -LiteralPath $CoffeeSnapshotPath) -and (Test-Path -LiteralPath $CoffeeExampleSnapshotPath)) {
+  Write-Host "Creating sample meituan snapshot from example..."
+  Copy-Item -LiteralPath $CoffeeExampleSnapshotPath -Destination $CoffeeSnapshotPath
+}
+
+Write-Host "Installing coffee-price OpenClaw plugin from ASCII project path..."
+Push-Location $AsciiProjectRoot
+try {
+  Invoke-OpenClaw plugins install . --force
+} finally {
+  Pop-Location
+}
+Invoke-OpenClaw config set plugins.entries.coffee-price.enabled true
+Invoke-OpenClaw config set plugins.entries.coffee-price.config.configPath $CoffeeConfigPath
+Invoke-OpenClaw config set plugins.entries.coffee-price.config.snapshotPaths.meituan $CoffeeSnapshotPath
+
 Write-Host "Installing Tencent Weixin channel plugin..."
 npx -y @tencent-weixin/openclaw-weixin-cli install
 Invoke-OpenClaw config set plugins.entries.openclaw-weixin.enabled true
+Invoke-OpenClaw config set session.dmScope per-account-channel-peer
 
 Write-Host "Installing OpenClaw Gateway scheduled task..."
 Push-Location $AsciiProjectRoot
