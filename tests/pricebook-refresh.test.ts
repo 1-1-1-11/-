@@ -124,7 +124,7 @@ test("refreshes price book from enabled external sources and preserves other dri
   assert.equal(summary.refreshedOffers, 1);
   assert.equal(summary.retainedOffers, 1);
   assert.equal(updated.updatedAt, "2026-06-21T02:00:00.000Z");
-  assert.ok(updated.offers?.some((offer) => offer.brand === "TestCoffee" && offer.purchaseUrl));
+  assert.ok(updated.offers?.some((offer) => offer.brand === "TestCoffee" && offer.source === "feed" && offer.purchaseUrl));
   assert.ok(updated.offers?.some((offer) => offer.brand === "OldCoffee"));
 
   const cli = await runPriceBookRefreshCli(["--config", configPath, "--json"], {
@@ -154,4 +154,57 @@ test("refresh CLI fails clearly when no external source is enabled", async () =>
 
   assert.equal(result.exitCode, 1);
   assert.match(result.text, /externalSources/);
+});
+
+test("price book preserves per-offer external source labels", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-pricebook-refresh-source-"));
+  const configDir = join(dir, "config");
+  const scriptDir = join(dir, "scripts");
+  await mkdir(configDir, { recursive: true });
+  await mkdir(scriptDir, { recursive: true });
+  const configPath = join(configDir, "coffee-price.config.json");
+  const priceBookPath = join(configDir, "pricebook.json");
+  const scriptPath = join(scriptDir, "source.mjs");
+
+  await writeFile(
+    scriptPath,
+    [
+      "let body = '';",
+      "for await (const chunk of process.stdin) body += chunk;",
+      "const request = JSON.parse(body);",
+      "console.log(JSON.stringify({",
+      "  source: 'aggregator',",
+      "  offers: [{",
+      "    source: 'luckinMcp',",
+      "    brand: '瑞幸',",
+      "    storeName: '瑞幸 科技园店',",
+      `    drinkName: ${JSON.stringify(ICED_AMERICANO)},`,
+      "    normalizedDrink: request.query.normalizedDrink,",
+      "    size: request.query.size,",
+      "    fulfillment: 'pickup',",
+      "    itemPrice: 12.9",
+      "  }]",
+      "}));"
+    ].join("\n"),
+    "utf8"
+  );
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      defaultAddressAlias: OFFICE,
+      addresses: [{ alias: OFFICE, label: OFFICE, query: OFFICE_QUERY }],
+      browserProfilePath: ".runtime/browser-profile",
+      priceBookPath: "config/pricebook.json",
+      priceBookRefresh: { outputPath: "config/pricebook.json", queries: [{ message: QUERY_MESSAGE }] },
+      brands: [{ name: "瑞幸", enabled: true }],
+      sources: { priceBook: true, meituan: false, eleme: false, brandOfficial: false },
+      externalSources: [{ id: "aggregator", command: process.execPath, args: ["scripts/source.mjs"] }]
+    }),
+    "utf8"
+  );
+
+  await refreshPriceBook({ configPath, queries: [], outputFormat: "text" });
+  const updated = JSON.parse(await readFile(priceBookPath, "utf8")) as PriceBook;
+
+  assert.equal(updated.offers?.[0]?.source, "luckinMcp");
 });

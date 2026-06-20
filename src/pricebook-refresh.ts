@@ -184,6 +184,7 @@ async function readExistingPriceBook(path: string): Promise<PriceBook> {
 
 function toPriceBookOffer(offer: OfferCandidate, address: AddressConfig): PriceBookOffer {
   return {
+    source: offer.source,
     addressAliases: [address.alias],
     brand: offer.brand,
     storeName: offer.storeName,

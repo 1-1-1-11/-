@@ -10,7 +10,9 @@
 - 微信消息文本解析：如 `查公司附近冰美式`、`查咖啡 冰美式 两杯`
 - 本地配置读取：地址、品牌池、渠道开关、独立浏览器 profile 路径
 - 本地价格库 provider：默认启用 `config/pricebook.json`，不打开外卖 H5 页面即可返回可比榜单
+- 城市参考价 provider：无 token 时也能给出星巴克/瑞幸/库迪的非实时横向参考
 - 外部命令/MCP provider：`externalSources` 可以桥接授权查价 API、MCP 工具或自有券源脚本
+- 瑞幸官方 MCP 设置器：`luckin:setup` 可导入 token、启用外部源、检查 readiness 并刷新价格库
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序
 - 浏览器页面提取器：用独立 profile 打开页面，按 CSS 选择器识别登录/验证码/无货，并提取价格候选
 - 最低价购买页打开：配置开启后会在本机默认浏览器打开最低价候选的 `http/https` 购买页
@@ -187,10 +189,24 @@ openclaw gateway restart
 先从瑞幸开放平台生成 token，并只保存在本机环境变量或本机文件。推荐直接把开放平台复制出来的 token、Bearer 头、JSON 配置或授权命令粘给导入命令。当前环境是 Windows PowerShell 5.1，经 `npm run` 转发时用 `--token` 参数比管道 stdin 更稳定：
 
 ```powershell
-npm run --silent luckin:import-token -- --token "Authorization: Bearer <你的瑞幸 MCP token>" --enable
+npm run --silent luckin:setup -- --token "Authorization: Bearer <你的瑞幸 MCP token>"
 ```
 
-导入命令会把 token 写入 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`，并在 `--enable` 时启用本地 `luckinMcp` 外部源；输出不会打印 token 内容。
+`luckin:setup` 会把 token 写入 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`，启用本地 `luckinMcp` 外部源，运行专项检查，并在实时源 ready 时调用 `pricebook:refresh` 写入本地价格库。输出不会打印 token 内容。
+
+没有 token 时也可以运行：
+
+```powershell
+npm run luckin:setup
+```
+
+这条命令会报告 `DEGRADED` 而不是硬失败：微信查价仍可使用本地价格库和城市参考价，但瑞幸官方 MCP 实时自取价会保持未启用。若你要把实时 MCP 当作强制验收条件，加 `--require-live`，检查不通过时命令会返回非零退出码。
+
+底层导入命令仍可用于排障或只想保存 token 的场景：
+
+```powershell
+npm run --silent luckin:import-token -- --token "Authorization: Bearer <你的瑞幸 MCP token>" --enable
+```
 
 如果只想临时放在当前 Windows PowerShell 会话里，也可以用环境变量：
 
@@ -338,6 +354,7 @@ npm run build
 npm run config:scaffold -- --config config/coffee-price.config.json --write
 npm run config:set-url -- --source meituan --url "https://example.com/replace-with-real-platform-page" --write
 npm run doctor
+npm run luckin:setup
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
 npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://example.com/replace-with-real-meituan-page" --url-eleme "https://example.com/replace-with-real-eleme-page" --url-brand "https://example.com/replace-with-real-brand-page" --manual-ms 120000
 npm run verify:live

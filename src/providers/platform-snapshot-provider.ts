@@ -21,7 +21,7 @@ export function parsePlatformSnapshot(snapshot: PlatformSnapshot): OfferCandidat
   return (snapshot.offers ?? [])
     .filter((offer) => !offer.unavailableReason)
     .map((offer) => ({
-      source: snapshot.source,
+      source: offer.source ?? snapshot.source,
       brand: offer.brand,
       storeName: offer.storeName,
       drinkName: offer.drinkName,

@@ -119,6 +119,7 @@ export interface PlatformSnapshot {
 }
 
 export interface PlatformSnapshotOffer {
+  source?: string;
   brand: string;
   storeName: string;
   drinkName: string;

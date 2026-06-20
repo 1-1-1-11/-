@@ -62,6 +62,8 @@ test("formats delivery and pickup top lists for WeChat", () => {
   assert.match(reply, /自取价 Top 1/);
   assert.match(reply, /库迪 科技园店/);
   assert.match(reply, /￥9\.90/);
+  assert.match(reply, /来源: 美团/);
+  assert.match(reply, /来源: 品牌官方/);
   assert.match(reply, /购买页: https:\/\/example.com\/pickup/);
 });
 

@@ -1,5 +1,14 @@
 import type { Discount, PricedOffer, SearchResult } from "./types.js";
 
+const SOURCE_LABELS: Record<string, string> = {
+  priceBook: "本地价格库",
+  cityBenchmark: "城市参考价（非实时）",
+  meituan: "美团",
+  eleme: "饿了么",
+  brandOfficial: "品牌官方",
+  luckinMcp: "瑞幸官方 MCP（实时自取）"
+};
+
 export function formatWechatReply(result: SearchResult): string {
   const lines: string[] = [
     `咖啡查价：${result.query.drink} x${result.query.quantity} @ ${result.resolvedAddress.label}`
@@ -35,6 +44,7 @@ function appendSection(lines: string[], title: string, offers: PricedOffer[]): v
     lines.push(
       `${index + 1}. ${offer.brand}｜${offer.storeName}｜${offer.drinkName}${offer.size ? ` ${offer.size}` : ""}｜￥${formatMoney(offer.totalPrice)}`
     );
+    lines.push(`   来源: ${formatSource(offer.source)}`);
     lines.push(`   费用: ${formatPriceParts(offer)}`);
     if (offer.distanceText || offer.etaText) {
       lines.push(`   距离/时间: ${[offer.distanceText, offer.etaText].filter(Boolean).join(" / ")}`);
@@ -43,6 +53,10 @@ function appendSection(lines: string[], title: string, offers: PricedOffer[]): v
       lines.push(`   购买页: ${offer.purchaseUrl}`);
     }
   });
+}
+
+function formatSource(source: string): string {
+  return SOURCE_LABELS[source] ?? source;
 }
 
 function formatPriceParts(offer: PricedOffer): string {
