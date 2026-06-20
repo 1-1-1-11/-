@@ -63,8 +63,8 @@ export async function completeWeixinLogin(
   const pollIntervalMs = input.pollIntervalMs ?? 1000;
   const timeoutMs = input.timeoutMs ?? 480_000;
   const statusRequestTimeoutMs = input.statusRequestTimeoutMs ?? 15_000;
-  const stateDir = input.stateDir ?? join(homedir(), ".openclaw", "state");
-  const configPath = input.configPath ?? join(homedir(), ".openclaw", "openclaw.json");
+  const stateDir = input.stateDir ?? resolveDefaultOpenClawStateDir();
+  const configPath = input.configPath ?? resolveDefaultOpenClawConfigPath();
   const qr = await fetchQrCode(fetcher, await loadLocalBotTokens(stateDir));
   await input.onQrCode?.(qr.qrcode_img_content);
 
@@ -87,7 +87,11 @@ export async function completeWeixinLogin(
         }
         continue;
       }
-      throw error;
+      return {
+        status: "failed",
+        qrcodeUrl: qr.qrcode_img_content,
+        message: `微信扫码状态请求失败: ${describeError(error)}。请确认网络/代理可访问 ${baseUrl}，然后重新运行 npm run weixin:login；不要关闭命令窗口直到显示微信已连接。`
+      };
     }
     await input.onStatus?.(status.status);
 
@@ -163,8 +167,37 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  const cause = error.cause;
+  if (cause instanceof Error) {
+    const code =
+      typeof (cause as Error & { code?: unknown }).code === "string"
+        ? `${(cause as Error & { code: string }).code}: `
+        : "";
+    return `${error.message} (${code}${cause.message})`;
+  }
+  return error.message;
+}
+
 export function normalizeWeixinAccountId(accountId: string): string {
   return accountId.trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+export function resolveDefaultOpenClawStateDir(
+  env: Partial<Record<"OPENCLAW_STATE_DIR" | "CLAWDBOT_STATE_DIR", string>> = process.env,
+  home = homedir()
+): string {
+  return env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim() || join(home, ".openclaw");
+}
+
+export function resolveDefaultOpenClawConfigPath(
+  env: Partial<Record<"OPENCLAW_CONFIG" | "OPENCLAW_STATE_DIR" | "CLAWDBOT_STATE_DIR", string>> = process.env,
+  home = homedir()
+): string {
+  return env.OPENCLAW_CONFIG?.trim() || join(resolveDefaultOpenClawStateDir(env, home), "openclaw.json");
 }
 
 async function fetchQrCode(fetcher: WeixinLoginFetch, localTokenList: string[]): Promise<QrResponse> {

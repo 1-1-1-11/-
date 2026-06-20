@@ -214,7 +214,11 @@ function checkWeixinLogin(text: string | undefined): DoctorCheck {
       "运行 openclaw channels login --channel openclaw-weixin；如果 Windows PowerShell 5.1 未显示二维码，运行 npm run weixin:login"
     );
   }
-  if (/Status:\s*configured/i.test(text) || /Status:.*enabled/i.test(text)) {
+  if (
+    /Status:\s*configured/i.test(text) ||
+    /Status:.*enabled/i.test(text) ||
+    /^openclaw-weixin\s+(?!default\b)\S+/im.test(text)
+  ) {
     return pass("weixin-login", "微信扫码登录", "微信 channel 已配置");
   }
   return warn("weixin-login", "微信扫码登录", "无法从能力输出判断登录状态", compact(text));

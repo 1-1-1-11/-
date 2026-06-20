@@ -63,6 +63,33 @@ test("doctor report passes when runtime paths, Weixin login, and iLink TLS are h
   assert.match(formatDoctorReport(report), /总体: PASS/);
 });
 
+test("doctor report treats indexed Weixin account capability output as logged in", () => {
+  const coffeeConfigPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\coffee-price.config.json";
+  const snapshotPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\snapshots\\meituan.json";
+
+  const report = buildDoctorReport({
+    openclawConfig: {
+      coffeeConfigPath,
+      meituanSnapshotPath: snapshotPath,
+      dmScope: "per-account-channel-peer",
+      weixinEnabled: true
+    },
+    pathExists: {
+      [coffeeConfigPath]: true,
+      [snapshotPath]: true
+    },
+    gatewayStatusText:
+      "Runtime: running\nConnectivity probe: ok\nListening: 127.0.0.1:18789\n",
+    gatewayWrapperText: "@echo off\nset \"NODE_OPTIONS=--import=file:///C:/Users/32299/.openclaw/coffee-price-project/scripts/openclaw-network-preload.mjs\"\n",
+    weixinCapabilitiesText:
+      "openclaw-weixin b59af4803859-im-bot\nSupport: chatTypes=direct media blockStreaming\nActions: send, broadcast\nProbe: unavailable\n",
+    ilinkProbe: { ok: true, status: 404 }
+  });
+
+  assert.equal(report.checks.find((check) => check.id === "weixin-login")?.status, "pass");
+  assert.equal(report.status, "pass");
+});
+
 test("doctor invokes OpenClaw through Node instead of a Windows cmd shim", () => {
   const invocation = getOpenClawInvocation("D:\\Desktop\\自动查价", "win32", ["gateway", "status"]);
 

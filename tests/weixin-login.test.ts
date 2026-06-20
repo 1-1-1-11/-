@@ -6,13 +6,37 @@ import test from "node:test";
 
 import {
   completeWeixinLogin,
-  normalizeWeixinAccountId
+  normalizeWeixinAccountId,
+  resolveDefaultOpenClawConfigPath,
+  resolveDefaultOpenClawStateDir
 } from "../src/weixin-login.js";
 import type { WeixinLoginFetch } from "../src/weixin-login.js";
 
 test("normalizes Weixin account ids for filesystem-safe credential files", () => {
   assert.equal(normalizeWeixinAccountId("abc123@im.bot"), "abc123-im-bot");
   assert.equal(normalizeWeixinAccountId("abc123@im.wechat"), "abc123-im-wechat");
+});
+
+test("direct Weixin login defaults to the same state paths as the OpenClaw Weixin plugin", () => {
+  const home = join("C:", "Users", "tester");
+
+  assert.equal(resolveDefaultOpenClawStateDir({}, home), join(home, ".openclaw"));
+  assert.equal(
+    resolveDefaultOpenClawStateDir({ CLAWDBOT_STATE_DIR: join("D:", "clawdbot") }, home),
+    join("D:", "clawdbot")
+  );
+  assert.equal(
+    resolveDefaultOpenClawStateDir(
+      { OPENCLAW_STATE_DIR: join("D:", "openclaw-state"), CLAWDBOT_STATE_DIR: join("D:", "clawdbot") },
+      home
+    ),
+    join("D:", "openclaw-state")
+  );
+  assert.equal(resolveDefaultOpenClawConfigPath({}, home), join(home, ".openclaw", "openclaw.json"));
+  assert.equal(
+    resolveDefaultOpenClawConfigPath({ OPENCLAW_CONFIG: join("D:", "openclaw.json") }, home),
+    join("D:", "openclaw.json")
+  );
 });
 
 test("direct Weixin login saves confirmed account credentials", async () => {
@@ -182,6 +206,40 @@ test("direct Weixin login reports timeout when status long-poll aborts at the de
   });
 
   assert.equal(result.status, "timeout");
+});
+
+test("direct Weixin login returns a clear failure when status polling has a network error", async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), "coffee-weixin-login-network-"));
+  const fetcher: WeixinLoginFetch = async (url) => {
+    if (url.includes("get_bot_qrcode")) {
+      return {
+        qrcode: "qr-token",
+        qrcode_img_content: "https://liteapp.weixin.qq.com/q/example",
+        ret: 0
+      };
+    }
+    const error = new TypeError("fetch failed");
+    (error as Error & { cause?: unknown }).cause = Object.assign(new Error("connect ETIMEDOUT 43.163.179.90:443"), {
+      code: "ETIMEDOUT"
+    });
+    throw error;
+  };
+
+  const result = await completeWeixinLogin({
+    stateDir,
+    configPath: join(stateDir, "openclaw.json"),
+    fetcher,
+    pollIntervalMs: 0,
+    timeoutMs: 1000,
+    onQrCode: () => undefined
+  });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.qrcodeUrl, "https://liteapp.weixin.qq.com/q/example");
+  assert.match(result.message, /微信扫码状态请求失败/);
+  assert.match(result.message, /ETIMEDOUT/);
+  assert.match(result.message, /connect ETIMEDOUT 43\.163\.179\.90:443/);
+  assert.match(result.message, /重新运行 npm run weixin:login/);
 });
 
 test("direct Weixin login returns a clear failure when Weixin asks for verification code", async () => {
