@@ -32,6 +32,12 @@ npm run config:scaffold -- --config config/coffee-price.config.json --write
 
 脚手架只补缺失渠道，不覆盖已有 selector；生成的 `example.com` 入口 URL 必须在真实平台校准后替换。
 
+拿到真实平台搜索页或店铺页后，可以用下面的命令写入入口 URL。它会自动启用对应渠道，保留已有 selector；如果该渠道还没有 `browserSources`，会先补模板再写 URL：
+
+```powershell
+npm run config:set-url -- --source meituan --url "https://example.com/replace-with-real-platform-page" --write
+```
+
 注意：这里说的 `powershell` 是 Windows PowerShell 5.1。如果你用 PowerShell 7，命令入口通常是 `pwsh`，脚本本身两者都可以运行。
 
 ## 本地验证
@@ -162,6 +168,7 @@ npm test
 npm run typecheck
 npm run build
 npm run config:scaffold -- --config config/coffee-price.config.json --write
+npm run config:set-url -- --source meituan --url "https://example.com/replace-with-real-platform-page" --write
 npm run doctor
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
 npm run verify:live
