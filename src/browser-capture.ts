@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
+import { waitForOptionalSelector } from "./browser-wait.js";
 import { readConfig } from "./config.js";
 import { parseCoffeeCommand } from "./query-parser.js";
 import {
@@ -108,11 +109,11 @@ async function loadPageWithPersistentProfile(
     if (request.manualWaitMs && request.manualWaitMs > 0) {
       await page.waitForTimeout(request.manualWaitMs);
     }
-    if (request.spec.browser?.waitForSelector) {
-      await page.waitForSelector(request.spec.browser.waitForSelector, {
-        timeout: request.spec.browser.timeoutMs ?? 60_000
-      });
-    }
+    await waitForOptionalSelector(
+      page,
+      request.spec.browser?.waitForSelector,
+      request.spec.browser?.timeoutMs ?? 60_000
+    );
     return {
       url: page.url(),
       html: await page.content()

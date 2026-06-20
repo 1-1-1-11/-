@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
+import { waitForOptionalSelector } from "../browser-wait.js";
 import { parsePlatformSnapshot } from "./platform-snapshot-provider.js";
 import type {
   AddressConfig,
@@ -128,11 +129,11 @@ export class BrowserSourceProvider implements CoffeeSourceProvider {
         waitUntil: this.spec.browser?.waitUntil ?? "domcontentloaded",
         timeout: this.spec.browser?.timeoutMs ?? 60_000
       });
-      if (this.spec.browser?.waitForSelector) {
-        await page.waitForSelector(this.spec.browser.waitForSelector, {
-          timeout: this.spec.browser.timeoutMs ?? 60_000
-        });
-      }
+      await waitForOptionalSelector(
+        page,
+        this.spec.browser?.waitForSelector,
+        this.spec.browser?.timeoutMs ?? 60_000
+      );
       const snapshot = extractPlatformSnapshotFromHtml(await page.content(), this.spec, page.url());
       return parsePlatformSnapshot(snapshot);
     } finally {
