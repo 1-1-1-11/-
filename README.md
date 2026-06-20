@@ -197,6 +197,8 @@ npm run verify:live
 
 需要给脚本或自动化消费验收结果时，可以运行 `npm run --silent verify:live -- --json`。JSON 输出包含 `status`、逐项 `checks` 和阶段化 `actions`，退出码仍保持一致：`FAIL` 返回非零，`PASS/WARN` 返回 0。加 `--silent` 是为了避免 npm 在 JSON 前打印脚本头。
 
+只想拿下一条可执行命令时，可以运行 `npm run --silent verify:next -- --ignore-calibration-report --command-only`。它会复用 `verify:live` 的检查结果，只输出第一条 action 的命令，例如当前现场状态会输出 `npm run weixin:login`；需要查看全部动作时加 `--all`，需要机器读取时加 `--json`。
+
 ## 价格边界
 
 - 外卖价：商品价 x 数量 + 配送费 + 包装费 - 可用优惠
