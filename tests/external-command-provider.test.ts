@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { z } from "zod";
 
 import { ExternalCommandProvider } from "../src/providers/external-command-provider.js";
 import { parseCoffeeCommand } from "../src/query-parser.js";
@@ -102,7 +106,7 @@ test("external HTTP provider posts request and reads a platform snapshot", async
       address: { alias: "公司", label: "公司", query: "深圳南山区科技园" }
     });
 
-    assert.ok(Array.isArray(result));
+    assert.ok(Array.isArray(result), JSON.stringify(result));
     assert.equal(result[0]?.source, "orderwise-http");
     assert.equal(result[0]?.storeName, "云手机美团店");
     assert.equal(requests.length, 1);
@@ -114,6 +118,103 @@ test("external HTTP provider posts request and reads a platform snapshot", async
     } else {
       process.env.COFFEE_HTTP_TOKEN = previousToken;
     }
+    await close(server);
+  }
+});
+
+test("external MCP provider calls a configured tool with rendered arguments", async () => {
+  const calls: Record<string, unknown>[] = [];
+  const mcp = new McpServer({ name: "coffee-test-mcp", version: "0.1.0" });
+  mcp.tool(
+    "quoteCoffee",
+    {
+      address: z.string(),
+      brand: z.string(),
+      drink: z.string(),
+      prompt: z.string(),
+      quantity: z.number(),
+      size: z.string()
+    },
+    async (args: Record<string, unknown>) => {
+      calls.push(args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              snapshot: {
+                source: "generic-mcp",
+                offers: [
+                  {
+                    brand: args.brand,
+                    storeName: `${args.brand} MCP店`,
+                    drinkName: args.drink,
+                    normalizedDrink: "americano",
+                    size: args.size,
+                    fulfillment: "delivery",
+                    itemPrice: 9.9,
+                    quantity: args.quantity,
+                    deliveryFee: 2,
+                    packagingFee: 1,
+                    totalPrice: 12.9
+                  }
+                ]
+              }
+            })
+          }
+        ]
+      };
+    }
+  );
+  const transport = new StreamableHTTPServerTransport({
+    enableJsonResponse: true,
+    sessionIdGenerator: randomUUID
+  });
+  await mcp.connect(transport);
+  const server = createServer(async (request, response) => {
+    const body = request.method === "POST" ? await readRequestBody(request) : "";
+    const parsedBody = body ? JSON.parse(body) : undefined;
+    void transport.handleRequest(request, response, parsedBody);
+  });
+  const endpoint = await listenMcp(server);
+  try {
+    const provider = new ExternalCommandProvider({
+      id: "generic-mcp",
+      type: "mcp",
+      endpoint,
+      toolName: "quoteCoffee",
+      toolResultPath: "snapshot",
+      toolArguments: {
+        brand: "瑞幸",
+        drink: "{{query.drink}}",
+        size: "{{query.size}}",
+        quantity: "{{query.quantity}}",
+        address: "{{address.query}}",
+        prompt: "查 {{address.label}} {{query.drink}}"
+      },
+      timeoutMs: 10_000
+    });
+    const result = await provider.search({
+      query: parseCoffeeCommand("查公司附近冰美式 中杯"),
+      config: config(),
+      address: { alias: "公司", label: "公司", query: "深圳南山区科技园" }
+    });
+
+    assert.ok(Array.isArray(result), JSON.stringify(result));
+    assert.equal(result[0]?.source, "generic-mcp");
+    assert.equal(result[0]?.storeName, "瑞幸 MCP店");
+    assert.equal(result[0]?.totalPrice, 12.9);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], {
+      brand: "瑞幸",
+      drink: "冰美式",
+      size: "中杯",
+      quantity: 1,
+      address: "深圳南山区科技园",
+      prompt: "查 公司 冰美式"
+    });
+  } finally {
+    await mcp.close();
     await close(server);
   }
 });
@@ -170,6 +271,16 @@ function listen(server: ReturnType<typeof createServer>): Promise<string> {
       const address = server.address();
       assert.ok(address && typeof address === "object");
       resolve(`http://127.0.0.1:${address.port}/search`);
+    });
+  });
+}
+
+function listenMcp(server: ReturnType<typeof createServer>): Promise<string> {
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      assert.ok(address && typeof address === "object");
+      resolve(`http://127.0.0.1:${address.port}/mcp`);
     });
   });
 }

@@ -181,6 +181,35 @@ openclaw gateway restart
 }
 ```
 
+MCP 直连模式会连接 Streamable HTTP MCP endpoint，调用指定 tool，并把 tool 返回结果解析成统一 `PlatformSnapshot`。`toolArguments` 支持 `{{query.rawText}}`、`{{query.drink}}`、`{{query.normalizedDrink}}`、`{{query.size}}`、`{{query.quantity}}`、`{{address.alias}}`、`{{address.label}}`、`{{address.query}}` 等模板；单独一个模板值会保留原始类型，例如 `quantity` 会保持 number。
+
+```json
+{
+  "externalSources": [
+    {
+      "id": "genericMcp",
+      "label": "通用 MCP 直连查价源",
+      "enabled": true,
+      "type": "mcp",
+      "endpoint": "http://127.0.0.1:8787/mcp",
+      "toolName": "coffee_price_search",
+      "toolArguments": {
+        "message": "{{query.rawText}}",
+        "drink": "{{query.drink}}",
+        "normalizedDrink": "{{query.normalizedDrink}}",
+        "size": "{{query.size}}",
+        "quantity": "{{query.quantity}}",
+        "address": "{{address.query}}"
+      },
+      "toolResultPath": "snapshot",
+      "timeoutMs": 120000
+    }
+  ]
+}
+```
+
+通用 MCP tool 可以直接返回 `PlatformSnapshot`，也可以返回 `{ "snapshot": { ... } }` 并配置 `toolResultPath: "snapshot"`。如果 MCP 返回的是 OrderWise 这类自定义结构，继续使用下文的专用桥接脚本，把结果先映射成统一 snapshot。
+
 HTTP 模式会用 `POST` 发送同一个 JSON 请求体，响应可以直接是 `PlatformSnapshot`，也可以包在 `data`、`result` 或 `snapshot` 字段中：
 
 ```json

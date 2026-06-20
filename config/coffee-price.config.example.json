@@ -79,6 +79,24 @@
       "timeoutMs": 30000
     },
     {
+      "id": "genericMcp",
+      "label": "通用 MCP 直连查价源",
+      "enabled": false,
+      "type": "mcp",
+      "endpoint": "http://127.0.0.1:8787/mcp",
+      "toolName": "coffee_price_search",
+      "toolArguments": {
+        "message": "{{query.rawText}}",
+        "drink": "{{query.drink}}",
+        "normalizedDrink": "{{query.normalizedDrink}}",
+        "size": "{{query.size}}",
+        "quantity": "{{query.quantity}}",
+        "address": "{{address.query}}"
+      },
+      "toolResultPath": "snapshot",
+      "timeoutMs": 120000
+    },
+    {
       "id": "luckinMcp",
       "label": "瑞幸官方 MCP",
       "enabled": false,

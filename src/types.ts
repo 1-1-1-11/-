@@ -37,7 +37,7 @@ export interface ExternalSourceConfig {
   id: string;
   label?: string;
   enabled?: boolean;
-  type?: "command" | "http";
+  type?: "command" | "http" | "mcp";
   command?: string;
   args?: string[];
   cwd?: string;
@@ -48,6 +48,10 @@ export interface ExternalSourceConfig {
   headerEnv?: Record<string, string>;
   bearerTokenEnv?: string;
   bearerTokenFile?: string;
+  endpoint?: string;
+  toolName?: string;
+  toolArguments?: Record<string, unknown>;
+  toolResultPath?: string;
 }
 
 export interface PriceBookRefreshQueryConfig {

@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { fetch } from "undici";
 
 import { parsePlatformSnapshot } from "./platform-snapshot-provider.js";
@@ -52,6 +54,9 @@ async function runExternalSource(
   source: ExternalSourceConfig,
   request: ExternalPriceSourceRequest
 ): Promise<PlatformSnapshot> {
+  if (source.type === "mcp") {
+    return runMcpSource(source, request);
+  }
   if (source.type === "http" || source.url) {
     return runHttpSource(source, request);
   }
@@ -61,6 +66,42 @@ async function runExternalSource(
     ...parsed,
     source: parsed.source || source.id
   };
+}
+
+async function runMcpSource(
+  source: ExternalSourceConfig,
+  request: ExternalPriceSourceRequest
+): Promise<PlatformSnapshot> {
+  if (!source.endpoint) {
+    throw new Error("mcp external source requires endpoint");
+  }
+  if (!source.toolName) {
+    throw new Error("mcp external source requires toolName");
+  }
+
+  const client = new Client({
+    name: `coffee-price-${source.id}-mcp-source`,
+    version: "0.1.0"
+  });
+  const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
+    requestInit: {
+      headers: await buildMcpHeaders(source)
+    }
+  });
+  try {
+    await client.connect(transport);
+    const result = await client.callTool(
+      {
+        name: source.toolName,
+        arguments: renderToolArguments(source.toolArguments ?? defaultToolArguments(), request)
+      },
+      undefined,
+      { timeout: source.timeoutMs ?? 120_000 }
+    );
+    return normalizeMcpSnapshot(result, source);
+  } finally {
+    await client.close();
+  }
 }
 
 function spawnJsonCommand(source: ExternalSourceConfig, request: ExternalPriceSourceRequest): Promise<string> {
@@ -151,6 +192,23 @@ async function buildHttpHeaders(source: ExternalSourceConfig): Promise<Record<st
   return headers;
 }
 
+async function buildMcpHeaders(source: ExternalSourceConfig): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    ...(source.headers ?? {})
+  };
+  for (const [header, envName] of Object.entries(source.headerEnv ?? {})) {
+    const value = process.env[envName];
+    if (value) {
+      headers[header] = value;
+    }
+  }
+  const bearerToken = await readBearerToken(source);
+  if (bearerToken) {
+    headers.authorization = `Bearer ${bearerToken}`;
+  }
+  return headers;
+}
+
 async function readBearerToken(source: ExternalSourceConfig): Promise<string | null> {
   if (source.bearerTokenEnv && process.env[source.bearerTokenEnv]) {
     return process.env[source.bearerTokenEnv]!.trim();
@@ -180,6 +238,56 @@ function normalizeHttpSnapshot(value: unknown, sourceId: string): PlatformSnapsh
   } as PlatformSnapshot;
 }
 
+function normalizeMcpSnapshot(value: unknown, source: ExternalSourceConfig): PlatformSnapshot {
+  const selected = source.toolResultPath
+    ? readPath(extractMcpPayload(value), source.toolResultPath)
+    : extractMcpPayload(value);
+  const payload = unwrapHttpPayload(selected);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("MCP source did not return a PlatformSnapshot JSON object");
+  }
+  const snapshot = payload as Partial<PlatformSnapshot>;
+  if (!snapshot.status && !Array.isArray(snapshot.offers)) {
+    throw new Error("MCP source response must contain offers[] or status");
+  }
+  return {
+    ...snapshot,
+    source: snapshot.source ?? source.id
+  } as PlatformSnapshot;
+}
+
+function extractMcpPayload(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const object = value as Record<string, unknown>;
+  if (object.structuredContent) {
+    return object.structuredContent;
+  }
+  if (Array.isArray(object.content)) {
+    for (const entry of object.content) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const text = (entry as { text?: unknown }).text;
+      if (typeof text === "string") {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      }
+    }
+  }
+  if (object.data) {
+    return object.data;
+  }
+  if (object.result) {
+    return object.result;
+  }
+  return value;
+}
+
 function unwrapHttpPayload(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
@@ -195,4 +303,78 @@ function unwrapHttpPayload(value: unknown): unknown {
     return unwrapHttpPayload(object.result);
   }
   return value;
+}
+
+function defaultToolArguments(): Record<string, unknown> {
+  return {
+    message: "{{query.rawText}}",
+    drink: "{{query.drink}}",
+    normalizedDrink: "{{query.normalizedDrink}}",
+    size: "{{query.size}}",
+    quantity: "{{query.quantity}}",
+    address: "{{address.query}}"
+  };
+}
+
+function renderToolArguments(
+  value: unknown,
+  request: ExternalPriceSourceRequest
+): Record<string, unknown> {
+  const rendered = renderTemplateValue(value, request);
+  if (!rendered || typeof rendered !== "object" || Array.isArray(rendered)) {
+    throw new Error("mcp toolArguments must render to an object");
+  }
+  return rendered as Record<string, unknown>;
+}
+
+function renderTemplateValue(value: unknown, request: ExternalPriceSourceRequest): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => renderTemplateValue(entry, request));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        renderTemplateValue(entry, request)
+      ])
+    );
+  }
+  if (typeof value !== "string") {
+    return value;
+  }
+  return renderTemplateString(value, request);
+}
+
+function renderTemplateString(value: string, request: ExternalPriceSourceRequest): unknown {
+  const single = value.match(/^{{\s*([^}]+?)\s*}}$/);
+  if (single) {
+    return readTemplatePath(single[1], request);
+  }
+  return value.replace(/{{\s*([^}]+?)\s*}}/g, (_match, path: string) => {
+    const replacement = readTemplatePath(path, request);
+    return replacement === undefined || replacement === null ? "" : String(replacement);
+  });
+}
+
+function readTemplatePath(path: string, request: ExternalPriceSourceRequest): unknown {
+  return readPath({ query: request.query, address: request.address }, path);
+}
+
+function readPath(value: unknown, path: string): unknown {
+  const segments = path.split(".").map((segment) => segment.trim()).filter(Boolean);
+  let current = value;
+  for (const segment of segments) {
+    if (current === undefined || current === null) {
+      return undefined;
+    }
+    if (/^\d+$/.test(segment) && Array.isArray(current)) {
+      current = current[Number(segment)];
+      continue;
+    }
+    if (typeof current !== "object") {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
 }
