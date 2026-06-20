@@ -149,7 +149,10 @@ npm run typecheck
 npm run build
 npm run doctor
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
+npm run verify:live
 ```
+
+`verify:live` 是现场验收前置检查：它会运行 doctor，检查启用渠道是否配置了真实 `browserSources`，并读取 `.runtime/captures/<source>.audit.json` 确认 selector 已经命中候选行且没有缺失必填价格字段。它失败时不会猜测价格，只会列出下一步要补的扫码、配置或 selector 校准动作。
 
 ## 价格边界
 
