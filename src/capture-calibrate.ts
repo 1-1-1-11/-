@@ -22,6 +22,11 @@ export interface CaptureCalibrateDeps {
   capture?: (input: CaptureBrowserSourceInput) => Promise<CaptureBrowserSourceResult>;
 }
 
+export interface CaptureCalibrateCliRunResult {
+  text: string;
+  exitCode: number;
+}
+
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
 const SOURCE_KEYS = ["meituan", "eleme", "brandOfficial"] as const;
 
@@ -90,25 +95,45 @@ export async function runCaptureCalibrateCli(
   args: string[],
   deps: CaptureCalibrateDeps = {}
 ): Promise<string> {
+  return (await runCaptureCalibrateCliDetailed(args, deps)).text;
+}
+
+export async function runCaptureCalibrateCliDetailed(
+  args: string[],
+  deps: CaptureCalibrateDeps = {}
+): Promise<CaptureCalibrateCliRunResult> {
   const options = parseCaptureCalibrateCliArgs(args);
   const config = await (deps.readConfig ?? readConfig)(options.configPath);
   const tasks = buildCaptureCalibrationTasks(config, options);
   const capture = deps.capture ?? captureBrowserSource;
   const lines = [`开始批量校准 ${tasks.length} 个渠道`];
+  let failed = false;
 
   for (const task of tasks) {
-    const result = await capture(task.input);
-    const saved = task.input.saveEntryUrl ? "，入口 URL 已写回配置" : "";
-    lines.push(
-      `[${task.source}] ${result.url}${saved}`,
-      `  HTML: ${result.htmlPath}`,
-      `  Snapshot: ${result.snapshotPath}`,
-      `  Selector audit: ${result.auditPath}`
-    );
+    try {
+      const result = await capture(task.input);
+      const saved = task.input.saveEntryUrl ? "，入口 URL 已写回配置" : "";
+      lines.push(
+        `[${task.source}] ${result.url}${saved}`,
+        `  HTML: ${result.htmlPath}`,
+        `  Snapshot: ${result.snapshotPath}`,
+        `  Selector audit: ${result.auditPath}`
+      );
+    } catch (error) {
+      failed = true;
+      lines.push(`[${task.source}] FAILED: ${formatError(error)}`);
+    }
   }
 
-  lines.push("完成后运行 npm run verify:live 查看剩余现场验收项");
-  return lines.join("\n");
+  lines.push(
+    failed
+      ? "有渠道校准失败；已继续处理其它渠道。修复失败项后重新运行 npm run verify:live"
+      : "完成后运行 npm run verify:live 查看剩余现场验收项"
+  );
+  return {
+    text: lines.join("\n"),
+    exitCode: failed ? 1 : 0
+  };
 }
 
 function isPlaceholderUrl(entryUrl: string): boolean {
@@ -149,6 +174,10 @@ function validateHttpUrl(value: string): string {
   return trimmed;
 }
 
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function readNumberOption(args: string[], name: string): number | undefined {
   const value = readOption(args, name);
   if (!value) {
@@ -175,7 +204,9 @@ function usage(): string {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
-    console.log(await runCaptureCalibrateCli(process.argv.slice(2)));
+    const result = await runCaptureCalibrateCliDetailed(process.argv.slice(2));
+    console.log(result.text);
+    process.exitCode = result.exitCode;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

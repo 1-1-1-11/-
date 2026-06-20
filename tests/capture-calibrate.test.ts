@@ -5,7 +5,8 @@ import test from "node:test";
 import {
   buildCaptureCalibrationTasks,
   parseCaptureCalibrateCliArgs,
-  runCaptureCalibrateCli
+  runCaptureCalibrateCli,
+  runCaptureCalibrateCliDetailed
 } from "../src/capture-calibrate.js";
 import type { CaptureBrowserSourceInput, CaptureBrowserSourceResult } from "../src/browser-capture.js";
 import type { CoffeePriceConfig } from "../src/types.js";
@@ -110,6 +111,33 @@ test("batch calibration captures every enabled source and saves only overridden 
   assert.equal(calls[1]?.saveEntryUrl, false);
   assert.match(result, /meituan/);
   assert.match(result, /eleme/);
+});
+
+test("batch calibration continues after one source capture fails", async () => {
+  const calls: CaptureBrowserSourceInput[] = [];
+
+  const result = await runCaptureCalibrateCliDetailed(
+    [
+      "查公司附近冰美式",
+      "--url-meituan",
+      "https://meituan.example.invalid/coffee"
+    ],
+    {
+      readConfig: async () => config,
+      capture: async (input) => {
+        calls.push(input);
+        if (input.source === "meituan") {
+          throw new Error("captcha required");
+        }
+        return mockCaptureResult(input);
+      }
+    }
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.exitCode, 1);
+  assert.match(result.text, /\[meituan\] FAILED: captcha required/);
+  assert.match(result.text, /\[eleme\]/);
 });
 
 test("package exposes batch capture calibration script", async () => {
