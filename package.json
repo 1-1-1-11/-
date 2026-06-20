@@ -12,7 +12,8 @@
     "plugin:validate": "openclaw plugins validate --root . --entry ./dist/openclaw-plugin.js",
     "coffee": "tsx src/cli.ts",
     "capture": "tsx src/capture.ts",
-    "doctor": "tsx src/doctor-cli.ts"
+    "doctor": "tsx src/doctor-cli.ts",
+    "weixin:login": "node --import ./scripts/openclaw-network-preload.mjs --import tsx src/weixin-login-cli.ts"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

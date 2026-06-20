@@ -69,6 +69,14 @@ npm run plugin:validate
 
 它会为当前登录命令注入 `scripts/openclaw-network-preload.mjs`，避免本机 TUN/fake-ip DNS 把 `ilinkai.weixin.qq.com` 解析到 `198.18.*` 后导致 TLS 重置。
 
+如果 OpenClaw 官方登录命令在 Windows PowerShell 5.1 里没有显示二维码，可以用本项目的直连登录 fallback：
+
+```powershell
+npm run weixin:login
+```
+
+这条命令会直接请求微信 iLink 二维码，扫码成功后把账号 token 写入 `C:\Users\32299\.openclaw\state\openclaw-weixin`，并更新 `C:\Users\32299\.openclaw\openclaw.json` 里的 `channels.openclaw-weixin.channelConfigUpdatedAt`，让 Gateway 重新加载微信 channel 配置。它不保存微信密码，也不绕过验证码；如果 `npm run doctor` 之后仍显示微信未登录，再运行 `npx openclaw gateway restart`。
+
 OpenClaw 官方文档当前说明微信 channel 是外部插件，支持私聊和媒体，群聊能力未在插件能力元数据中声明。因此本项目第一版按微信私聊设计。
 
 ## OpenClaw 插件配置
