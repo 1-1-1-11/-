@@ -35,7 +35,10 @@ export interface CoffeePriceConfig {
   browserProfilePath: string;
   brands: BrandConfig[];
   sources: SourceConfig;
+  browserSources?: BrowserSourcesConfig;
 }
+
+export type BrowserSourcesConfig = Partial<Record<keyof SourceConfig, BrowserSourceSpec>>;
 
 export interface CoffeeQuery {
   rawText: string;
@@ -77,6 +80,71 @@ export interface PricedOffer extends OfferCandidate {
 export interface ProviderStatus {
   status: Exclude<ProviderStatusCode, "ok">;
   message: string;
+}
+
+export interface PlatformSnapshot {
+  source: string;
+  status?: Exclude<ProviderStatusCode, "ok">;
+  message?: string;
+  offers?: PlatformSnapshotOffer[];
+}
+
+export interface PlatformSnapshotOffer {
+  brand: string;
+  storeName: string;
+  drinkName: string;
+  normalizedDrink: string;
+  size?: string | null;
+  fulfillment: Fulfillment;
+  itemPrice: number;
+  quantity?: number;
+  deliveryFee?: number;
+  packagingFee?: number;
+  discounts?: Discount[];
+  distanceText?: string;
+  etaText?: string;
+  purchaseUrl?: string;
+  unavailableReason?: string;
+}
+
+export interface BrowserSourceSpec {
+  source: keyof SourceConfig | string;
+  entryUrl: string;
+  selectors: BrowserSourceSelectors;
+  browser?: {
+    channel?: "chrome" | "msedge" | "chromium";
+    headless?: boolean;
+    waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
+    waitForSelector?: string;
+    timeoutMs?: number;
+  };
+}
+
+export interface BrowserSourceSelectors {
+  loginRequired?: string;
+  captchaRequired?: string;
+  noStock?: string;
+  offerRows: string;
+  fields: {
+    brand: string;
+    storeName: string;
+    drinkName: string;
+    normalizedDrink?: string;
+    size?: string;
+    fulfillment: string;
+    itemPrice: string;
+    quantity?: string;
+    deliveryFee?: string;
+    packagingFee?: string;
+    distanceText?: string;
+    etaText?: string;
+    purchaseUrl?: string;
+  };
+  discounts?: {
+    rows: string;
+    label: string;
+    amount: string;
+  };
 }
 
 export interface CoffeeSourceProvider {

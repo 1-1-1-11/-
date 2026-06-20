@@ -21,7 +21,8 @@ export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceCon
     addresses: raw.addresses ?? [],
     browserProfilePath: raw.browserProfilePath ?? ".runtime/browser-profile",
     brands: normalizeBrands(raw.brands),
-    sources: { ...DEFAULT_SOURCES, ...(raw.sources ?? {}) }
+    sources: { ...DEFAULT_SOURCES, ...(raw.sources ?? {}) },
+    browserSources: raw.browserSources ?? {}
   };
 }
 

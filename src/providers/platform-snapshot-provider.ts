@@ -5,34 +5,10 @@ import type {
   CoffeeQuery,
   CoffeeSourceProvider,
   OfferCandidate,
+  PlatformSnapshot,
   ProviderStatus,
   ProviderStatusCode
 } from "../types.js";
-
-interface PlatformSnapshot {
-  source: string;
-  status?: Exclude<ProviderStatusCode, "ok">;
-  message?: string;
-  offers?: PlatformSnapshotOffer[];
-}
-
-interface PlatformSnapshotOffer {
-  brand: string;
-  storeName: string;
-  drinkName: string;
-  normalizedDrink: string;
-  size?: string | null;
-  fulfillment: "delivery" | "pickup";
-  itemPrice: number;
-  quantity?: number;
-  deliveryFee?: number;
-  packagingFee?: number;
-  discounts?: { label: string; amount: number }[];
-  distanceText?: string;
-  etaText?: string;
-  purchaseUrl?: string;
-  unavailableReason?: string;
-}
 
 export function parsePlatformSnapshot(snapshot: PlatformSnapshot): OfferCandidate[] | ProviderStatus {
   if (snapshot.status) {

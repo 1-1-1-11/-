@@ -13,6 +13,8 @@
     "coffee": "tsx src/cli.ts"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
+    "playwright-core": "^1.61.0",
     "typebox": "^1.2.17"
   },
   "devDependencies": {

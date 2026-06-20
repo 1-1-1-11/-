@@ -10,6 +10,7 @@
 - 微信消息文本解析：如 `查公司附近冰美式`、`查咖啡 冰美式 两杯`
 - 本地配置读取：地址、品牌池、渠道开关、独立浏览器 profile 路径
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序
+- 浏览器页面提取器：用独立 profile 打开页面，按 CSS 选择器识别登录/验证码/无货，并提取价格候选
 - 外卖和自取分别 Top 3，价格包含商品、配送、包装和优惠拆解
 - 本地 CLI：`npm run coffee -- "查公司附近冰美式" --config config/coffee-price.config.json`
 
@@ -66,6 +67,19 @@ openclaw gateway restart
 ```
 
 真实自动查价时，后续要把美团、饿了么、品牌官方页面自动化提取层接到同一个 snapshot 格式。现在的 snapshot 适配器已经把“登录失效/验证码/无货/可比候选”边界固定住。
+
+## 浏览器提取器
+
+`browserSources` 可以为每个渠道配置一个入口 URL 和 CSS 选择器。工具会使用 `browserProfilePath` 指向的独立浏览器 profile 打开页面，然后提取字段：
+
+- `loginRequired` / `captchaRequired` / `noStock`：先识别不可报价状态
+- `offerRows`：每个可比价格行
+- `fields`：品牌、门店、饮品、履约方式、价格、配送费、包装费、距离、购买链接等
+- `discounts`：优惠行、优惠名称和金额
+
+入口 URL 支持模板变量：`{{addressQuery}}`、`{{addressAlias}}`、`{{drink}}`、`{{normalizedDrink}}`、`{{quantity}}`、`{{size}}`、`{{temperature}}`。
+
+真实平台页面需要登录后用浏览器检查 DOM，再把选择器填入 `config/coffee-price.config.json`。如果页面出现验证码或登录失效，工具会返回明确原因，不会继续猜价。
 
 ## 开发命令
 

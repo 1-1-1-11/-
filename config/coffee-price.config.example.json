@@ -26,5 +26,44 @@
     "meituan": true,
     "eleme": true,
     "brandOfficial": true
+  },
+  "browserSources": {
+    "meituan": {
+      "source": "meituan",
+      "entryUrl": "https://example.com/search?address={{addressQuery}}&drink={{drink}}&quantity={{quantity}}",
+      "selectors": {
+        "loginRequired": "[data-login-required]",
+        "captchaRequired": "[data-captcha-required]",
+        "noStock": "[data-no-stock]",
+        "offerRows": "[data-offer]",
+        "fields": {
+          "brand": "[data-brand]",
+          "storeName": "[data-store]",
+          "drinkName": "[data-drink]",
+          "normalizedDrink": "[data-normalized-drink]",
+          "size": "[data-size]",
+          "fulfillment": "[data-fulfillment]",
+          "itemPrice": "[data-item-price]",
+          "quantity": "[data-quantity]",
+          "deliveryFee": "[data-delivery-fee]",
+          "packagingFee": "[data-packaging-fee]",
+          "distanceText": "[data-distance]",
+          "etaText": "[data-eta]",
+          "purchaseUrl": "[data-purchase-url]"
+        },
+        "discounts": {
+          "rows": "[data-discount]",
+          "label": "[data-discount-label]",
+          "amount": "[data-discount-amount]"
+        }
+      },
+      "browser": {
+        "channel": "msedge",
+        "headless": false,
+        "waitUntil": "domcontentloaded",
+        "waitForSelector": "[data-offer]",
+        "timeoutMs": 60000
+      }
+    }
   }
 }

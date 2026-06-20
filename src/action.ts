@@ -2,8 +2,9 @@ import { readConfig } from "./config.js";
 import { formatWechatReply } from "./formatter.js";
 import { parseCoffeeCommand } from "./query-parser.js";
 import { searchCoffeePrices } from "./search-service.js";
+import { BrowserSourceProvider } from "./providers/browser-source-provider.js";
 import { SnapshotFileProvider } from "./providers/platform-snapshot-provider.js";
-import type { CoffeeSourceProvider, SourceConfig } from "./types.js";
+import type { BrowserSourcesConfig, CoffeeSourceProvider, SourceConfig } from "./types.js";
 
 export interface RunCoffeePriceSearchInput {
   message: string;
@@ -22,14 +23,15 @@ const SOURCE_LABELS: Record<keyof SourceConfig, string> = {
 export async function runCoffeePriceSearch(input: RunCoffeePriceSearchInput): Promise<string> {
   const config = await readConfig(input.configPath ?? process.env.COFFEE_PRICE_CONFIG ?? DEFAULT_CONFIG_PATH);
   const query = parseCoffeeCommand(input.message);
-  const providers = createProviders(config.sources, input.snapshotPaths ?? {});
+  const providers = createProviders(config.sources, input.snapshotPaths ?? {}, config.browserSources);
   const result = await searchCoffeePrices({ query, config, providers });
   return formatWechatReply(result);
 }
 
 function createProviders(
   sources: SourceConfig,
-  snapshotPaths: Partial<Record<keyof SourceConfig, string>>
+  snapshotPaths: Partial<Record<keyof SourceConfig, string>>,
+  browserSources: BrowserSourcesConfig = {}
 ): CoffeeSourceProvider[] {
   return (Object.keys(sources) as (keyof SourceConfig)[])
     .filter((source) => sources[source])
@@ -38,8 +40,20 @@ function createProviders(
       if (snapshotPath) {
         return new SnapshotFileProvider(source, SOURCE_LABELS[source], snapshotPath);
       }
+      const browserProvider = createBrowserProvider(source, browserSources);
+      if (browserProvider) {
+        return browserProvider;
+      }
       return new NotConfiguredProvider(source, SOURCE_LABELS[source]);
     });
+}
+
+function createBrowserProvider(
+  source: keyof SourceConfig,
+  browserSources: BrowserSourcesConfig
+): BrowserSourceProvider | null {
+  const spec = browserSources[source];
+  return spec ? new BrowserSourceProvider(source, SOURCE_LABELS[source], spec) : null;
 }
 
 class NotConfiguredProvider implements CoffeeSourceProvider {
