@@ -1,0 +1,19 @@
+{
+  "source": "priceBook",
+  "updatedAt": "2026-06-21T00:00:00+08:00",
+  "offers": [
+    {
+      "addressAliases": ["公司"],
+      "brand": "瑞幸",
+      "storeName": "瑞幸 示例门店",
+      "drinkName": "冰美式",
+      "normalizedDrink": "americano",
+      "size": "中杯",
+      "fulfillment": "pickup",
+      "itemPrice": 12.9,
+      "discounts": [{ "label": "示例券", "amount": 4 }],
+      "distanceText": "500m",
+      "purchaseUrl": "https://lkcoffee.com/"
+    }
+  ]
+}

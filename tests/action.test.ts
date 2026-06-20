@@ -111,3 +111,52 @@ test("opens the lowest purchase page when configured", async () => {
   assert.deepEqual(opened, ["https://example.com/order"]);
   assert.match(reply, /已打开最低价购买页/);
 });
+
+test("runs from the local price book without opening browser sources", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-action-pricebook-"));
+  const configPath = join(dir, "config.json");
+  const priceBookPath = join(dir, "pricebook.json");
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      defaultAddressAlias: "公司",
+      addresses: [{ alias: "公司", label: "公司", query: "深圳南山区科技园" }],
+      browserProfilePath: "D:/profiles/coffee",
+      priceBookPath,
+      brands: [{ name: "库迪", enabled: true }],
+      sources: { priceBook: true, meituan: false, eleme: false, brandOfficial: false }
+    }),
+    "utf8"
+  );
+  await writeFile(
+    priceBookPath,
+    JSON.stringify({
+      source: "priceBook",
+      offers: [
+        {
+          addressAliases: ["公司"],
+          brand: "库迪",
+          storeName: "库迪 科技园店",
+          drinkName: "冰美式",
+          normalizedDrink: "americano",
+          size: "中杯",
+          fulfillment: "pickup",
+          itemPrice: 10.9,
+          discounts: [{ label: "本地券", amount: 1 }],
+          purchaseUrl: "https://example.com/cotti"
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  const reply = await runCoffeePriceSearch({
+    message: "查公司附近冰美式",
+    configPath
+  });
+
+  assert.match(reply, /自取价 Top 1/);
+  assert.match(reply, /库迪 科技园店/);
+  assert.match(reply, /￥9\.90/);
+});

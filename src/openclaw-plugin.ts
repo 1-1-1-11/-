@@ -34,7 +34,7 @@ export default defineToolPlugin({
       name: "coffee_price_search",
       label: "Coffee Price Search",
       description:
-        "Compare nearby chain coffee delivery and pickup prices for a WeChat request. Returns ranked prices and purchase links without placing an order.",
+        "Compare nearby chain coffee delivery and pickup prices for a WeChat request. Call this for Chinese coffee price commands such as 查公司附近冰美式. Return the tool result verbatim without summarizing or reformatting, because it already contains ranked prices, fee breakdowns, and purchase links. Never place an order.",
       parameters,
       async execute({ message }, config, context) {
         context.signal?.throwIfAborted();

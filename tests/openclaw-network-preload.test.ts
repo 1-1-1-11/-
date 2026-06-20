@@ -9,6 +9,8 @@ test("installer wires the OpenClaw network preload into gateway and login comman
   assert.match(script, /OPENCLAW_WEIXIN_NODE_OPTIONS/);
   assert.match(script, /NODE_OPTIONS/);
   assert.match(script, /AbsoluteUri/);
+  assert.match(script, /Ensure-CoffeeToolWorkspaceNotes/);
+  assert.match(script, /coffee_price_search/);
   assert.doesNotMatch(script, /npm install -g openclaw/);
 });
 

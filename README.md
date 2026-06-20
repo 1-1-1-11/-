@@ -9,6 +9,8 @@
 - `coffee_price_search` OpenClaw tool plugin
 - 微信消息文本解析：如 `查公司附近冰美式`、`查咖啡 冰美式 两杯`
 - 本地配置读取：地址、品牌池、渠道开关、独立浏览器 profile 路径
+- 本地价格库 provider：默认启用 `config/pricebook.json`，不打开外卖 H5 页面即可返回可比榜单
+- 外部命令/MCP provider：`externalSources` 可以桥接授权查价 API、MCP 工具或自有券源脚本
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序
 - 浏览器页面提取器：用独立 profile 打开页面，按 CSS 选择器识别登录/验证码/无货，并提取价格候选
 - 最低价购买页打开：配置开启后会在本机默认浏览器打开最低价候选的 `http/https` 购买页
@@ -23,6 +25,16 @@ Copy-Item config/coffee-price.config.example.json config/coffee-price.config.jso
 ```
 
 编辑 `config/coffee-price.config.json`，把 `addresses` 改成你的常用地址。
+
+默认配置走本地价格库：
+
+```powershell
+npm run coffee -- "查公司附近冰美式"
+npm run coffee -- "查咖啡 冰美式 两杯"
+npm run coffee -- "查公司附近拿铁 大杯"
+```
+
+`config/pricebook.json` 是第一版可用数据源。它适合接入你自己维护的券源、群里收集的低价、品牌官方活动价，或者外部 MCP/脚本写入的结果。每条 offer 支持按 `addressAliases` 或 `addressQueries` 限定地址，支持外卖/自取、配送费、包装费、优惠拆解和购买链接。
 
 如果配置里还没有 `browserSources`，可以先生成三个启用渠道的 selector 模板：
 
@@ -42,7 +54,13 @@ npm run config:set-url -- --source meituan --url "https://example.com/replace-wi
 
 ## 本地验证
 
-示例快照不会访问真实平台，只用于验证查价链路：
+默认可用验证不访问真实平台，只读取本地价格库：
+
+```powershell
+npm run coffee -- "查公司附近冰美式"
+```
+
+示例快照也不会访问真实平台，只用于验证 snapshot 查价链路：
 
 ```powershell
 Copy-Item config/snapshots/meituan.example.json config/snapshots/meituan.json
@@ -116,9 +134,53 @@ openclaw gateway restart
 
 真实自动查价时，后续要把美团、饿了么、品牌官方页面自动化提取层接到同一个 snapshot 格式。现在的 snapshot 适配器已经把“登录失效/验证码/无货/可比候选”边界固定住。
 
+## 本地价格库与 MCP 源
+
+默认运行配置启用 `sources.priceBook`，关闭 `meituan`、`eleme`、`brandOfficial` 网页源。这样微信触发时不会卡在网页登录、人机验证或 403 风控上，而是直接用 `config/pricebook.json` 返回榜单。价格库结构示例：
+
+```json
+{
+  "source": "priceBook",
+  "updatedAt": "2026-06-21T00:00:00+08:00",
+  "offers": [
+    {
+      "addressAliases": ["公司"],
+      "brand": "瑞幸",
+      "storeName": "瑞幸 示例门店",
+      "drinkName": "冰美式",
+      "normalizedDrink": "americano",
+      "size": "中杯",
+      "fulfillment": "pickup",
+      "itemPrice": 12.9,
+      "discounts": [{ "label": "示例券", "amount": 4 }],
+      "purchaseUrl": "https://lkcoffee.com/"
+    }
+  ]
+}
+```
+
+`externalSources` 用于接授权接口或 MCP/CLI 工具。工具会把 `{ query, address }` JSON 写入外部命令的 stdin，并要求 stdout 返回一个 `PlatformSnapshot` JSON。示例：
+
+```json
+{
+  "externalSources": [
+    {
+      "id": "mcp-price-feed",
+      "label": "MCP 查价源",
+      "enabled": true,
+      "command": "node",
+      "args": ["scripts/example-external-price-source.mjs"],
+      "timeoutMs": 30000
+    }
+  ]
+}
+```
+
+这个桥接层也可以包装 `mcporter call ...`、内部 HTTP API、定时采集器输出等。它不要求外部源一定是网页抓取；只要输出统一 snapshot，排序和微信回复逻辑就会复用同一套代码。
+
 ## 浏览器提取器
 
-`browserSources` 可以为每个渠道配置一个入口 URL 和 CSS 选择器。工具会使用 `browserProfilePath` 指向的独立浏览器 profile 打开页面，然后提取字段：
+`browserSources` 是可选增强源，可以为每个网页渠道配置一个入口 URL 和 CSS 选择器。工具会使用 `browserProfilePath` 指向的独立浏览器 profile 打开页面，然后提取字段：
 
 - `loginRequired` / `captchaRequired` / `noStock`：先识别不可报价状态
 - `offerRows`：每个可比价格行

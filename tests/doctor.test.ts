@@ -38,17 +38,21 @@ test("doctor report fails on mojibake config paths, unconfigured Weixin, and iLi
 test("doctor report passes when runtime paths, Weixin login, and iLink TLS are healthy", () => {
   const coffeeConfigPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\coffee-price.config.json";
   const snapshotPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\snapshots\\meituan.json";
+  const priceBookPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\pricebook.json";
 
   const report = buildDoctorReport({
     openclawConfig: {
       coffeeConfigPath,
       meituanSnapshotPath: snapshotPath,
+      priceBookEnabled: true,
+      priceBookPath,
       dmScope: "per-account-channel-peer",
       weixinEnabled: true
     },
     pathExists: {
       [coffeeConfigPath]: true,
-      [snapshotPath]: true
+      [snapshotPath]: true,
+      [priceBookPath]: true
     },
     gatewayStatusText:
       "Runtime: running\nConnectivity probe: ok\nListening: 127.0.0.1:18789\n",
@@ -66,17 +70,21 @@ test("doctor report passes when runtime paths, Weixin login, and iLink TLS are h
 test("doctor report treats indexed Weixin account capability output as logged in", () => {
   const coffeeConfigPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\coffee-price.config.json";
   const snapshotPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\snapshots\\meituan.json";
+  const priceBookPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\pricebook.json";
 
   const report = buildDoctorReport({
     openclawConfig: {
       coffeeConfigPath,
       meituanSnapshotPath: snapshotPath,
+      priceBookEnabled: true,
+      priceBookPath,
       dmScope: "per-account-channel-peer",
       weixinEnabled: true
     },
     pathExists: {
       [coffeeConfigPath]: true,
-      [snapshotPath]: true
+      [snapshotPath]: true,
+      [priceBookPath]: true
     },
     gatewayStatusText:
       "Runtime: running\nConnectivity probe: ok\nListening: 127.0.0.1:18789\n",

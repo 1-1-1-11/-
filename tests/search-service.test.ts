@@ -74,6 +74,23 @@ test("reports provider status instead of inventing prices", async () => {
   assert.match(result.warnings[0] ?? "", /登录态失效/);
 });
 
+test("uses requested quantity when ranking provider offers", async () => {
+  const provider: CoffeeSourceProvider = {
+    id: "fixture",
+    label: "fixture",
+    search: async () => [candidate("瑞幸", "冰美式", "pickup", 12.9)]
+  };
+
+  const result = await searchCoffeePrices({
+    query: parseCoffeeCommand("查咖啡 冰美式 两杯"),
+    config,
+    providers: [provider]
+  });
+
+  assert.equal(result.pickup[0]?.quantity, 2);
+  assert.equal(result.pickup[0]?.totalPrice, 25.8);
+});
+
 function candidate(
   brand: string,
   drinkName: string,

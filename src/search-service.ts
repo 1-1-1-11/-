@@ -36,9 +36,10 @@ export async function searchCoffeePrices(input: SearchCoffeePricesInput): Promis
       if (!matchesCoffeeQuery(offer, input.query.normalizedDrink, input.query.size)) {
         continue;
       }
+      const pricedOffer = withQueryQuantity(offer, input.query.quantity);
       offers.push({
-        ...offer,
-        totalPrice: offer.totalPrice ?? calculateOfferTotal(offer)
+        ...pricedOffer,
+        totalPrice: totalForQueryQuantity(offer, pricedOffer)
       });
     }
   }
@@ -74,6 +75,20 @@ function matchesCoffeeQuery(offer: OfferCandidate, normalizedDrink: string, size
     return false;
   }
   return !size || offer.size === size;
+}
+
+function withQueryQuantity(offer: OfferCandidate, quantity: number): OfferCandidate {
+  return {
+    ...offer,
+    quantity
+  };
+}
+
+function totalForQueryQuantity(original: OfferCandidate, adjusted: OfferCandidate): number {
+  if (original.totalPrice !== undefined && original.quantity === adjusted.quantity) {
+    return original.totalPrice;
+  }
+  return calculateOfferTotal(adjusted);
 }
 
 function topThree(offers: PricedOffer[], fulfillment: "delivery" | "pickup"): PricedOffer[] {

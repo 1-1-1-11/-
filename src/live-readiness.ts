@@ -2,7 +2,9 @@ import type { DoctorReport, DoctorStatus } from "./doctor.js";
 import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
-import type { BrowserSourceSpec, CoffeePriceConfig, SourceConfig } from "./types.js";
+import type { BrowserSourceSpec, CoffeePriceConfig } from "./types.js";
+
+type BrowserPlatformSource = "meituan" | "eleme" | "brandOfficial";
 
 export interface LiveReadinessCheck {
   id: string;
@@ -17,7 +19,7 @@ export interface LiveReadinessAction {
   label: string;
   reason: string;
   command?: string;
-  source?: keyof SourceConfig;
+  source?: BrowserPlatformSource;
 }
 
 export interface LiveReadinessReport {
@@ -29,12 +31,12 @@ export interface LiveReadinessReport {
 export interface BuildLiveReadinessReportInput {
   config: CoffeePriceConfig;
   doctor?: DoctorReport;
-  audits?: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>>;
-  networkLogs?: Partial<Record<keyof SourceConfig, BrowserNetworkLogEntry[] | null>>;
+  audits?: Partial<Record<BrowserPlatformSource, BrowserSourceSelectorAudit | null>>;
+  networkLogs?: Partial<Record<BrowserPlatformSource, BrowserNetworkLogEntry[] | null>>;
   calibrationReport?: CaptureCalibrationReport | null;
 }
 
-const SOURCE_KEYS = ["meituan", "eleme", "brandOfficial"] as const;
+const SOURCE_KEYS: readonly BrowserPlatformSource[] = ["meituan", "eleme", "brandOfficial"];
 
 export function buildLiveReadinessReport(
   input: BuildLiveReadinessReportInput
@@ -86,11 +88,11 @@ export function formatLiveReadinessReport(report: LiveReadinessReport): string {
   return lines.join("\n");
 }
 
-export function defaultAuditPath(source: keyof SourceConfig): string {
+export function defaultAuditPath(source: BrowserPlatformSource): string {
   return `.runtime/captures/${source}.audit.json`;
 }
 
-export function defaultNetworkPath(source: keyof SourceConfig): string {
+export function defaultNetworkPath(source: BrowserPlatformSource): string {
   return `.runtime/captures/${source}.network.json`;
 }
 
@@ -140,7 +142,7 @@ function checkCalibrationReport(report: CaptureCalibrationReport): LiveReadiness
 }
 
 function checkSourceConfig(
-  source: keyof SourceConfig,
+  source: BrowserPlatformSource,
   spec: BrowserSourceSpec | undefined
 ): LiveReadinessCheck {
   if (spec) {
@@ -153,7 +155,7 @@ function checkSourceConfig(
   );
 }
 
-function checkSourceUrl(source: keyof SourceConfig, entryUrl: string): LiveReadinessCheck {
+function checkSourceUrl(source: BrowserPlatformSource, entryUrl: string): LiveReadinessCheck {
   if (isPlaceholderUrl(entryUrl)) {
     return fail(
       `source-${source}-url`,
@@ -169,7 +171,7 @@ function checkSourceUrl(source: keyof SourceConfig, entryUrl: string): LiveReadi
 }
 
 function checkSourceAudit(
-  source: keyof SourceConfig,
+  source: BrowserPlatformSource,
   audit: BrowserSourceSelectorAudit | null | undefined,
   networkLog: BrowserNetworkLogEntry[] | null | undefined
 ): LiveReadinessCheck {
@@ -265,11 +267,11 @@ function fail(id: string, label: string, message: string, detail?: string): Live
   return { id, label, status: "fail", message, detail };
 }
 
-function captureWithSaveUrlCommand(source: keyof SourceConfig): string {
+function captureWithSaveUrlCommand(source: BrowserPlatformSource): string {
   return `npm run capture -- "查公司附近冰美式" --source ${source} --url "<real-platform-url>" --save-url --manual-ms 120000`;
 }
 
-function captureAuditCommand(source: keyof SourceConfig): string {
+function captureAuditCommand(source: BrowserPlatformSource): string {
   return `npm run capture -- "查公司附近冰美式" --source ${source} --manual-ms 120000`;
 }
 
@@ -337,7 +339,7 @@ function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveRe
     }
   }
 
-  const placeholderSourceSet = new Set<keyof SourceConfig>(placeholderSources);
+  const placeholderSourceSet = new Set<BrowserPlatformSource>(placeholderSources);
   for (const source of SOURCE_KEYS) {
     if (!input.config.sources[source] || !input.config.browserSources?.[source]) {
       continue;
@@ -378,17 +380,17 @@ function isPlaceholderUrl(entryUrl: string): boolean {
   return /^https?:\/\/example\.com(?:[/:?#]|$)/i.test(entryUrl);
 }
 
-function buildBatchCalibrationCommandForSources(sources: readonly (keyof SourceConfig)[]): string {
+function buildBatchCalibrationCommandForSources(sources: readonly BrowserPlatformSource[]): string {
   const urlArgs = sources
     .map((source) => `${urlFlag(source)} "<real-${sourceLabel(source)}-url>"`)
     .join(" ");
   return `npm run capture:calibrate -- "查公司附近冰美式" ${urlArgs} --manual-ms 120000`;
 }
 
-function urlFlag(source: keyof SourceConfig): string {
+function urlFlag(source: BrowserPlatformSource): string {
   return source === "brandOfficial" ? "--url-brand" : `--url-${source}`;
 }
 
-function sourceLabel(source: keyof SourceConfig): string {
+function sourceLabel(source: BrowserPlatformSource): string {
   return source === "brandOfficial" ? "brand" : source;
 }

@@ -24,9 +24,20 @@ export interface BrandConfig {
 }
 
 export interface SourceConfig {
+  priceBook?: boolean;
   meituan: boolean;
   eleme: boolean;
   brandOfficial: boolean;
+}
+
+export interface ExternalSourceConfig {
+  id: string;
+  label?: string;
+  enabled?: boolean;
+  command: string;
+  args?: string[];
+  cwd?: string;
+  timeoutMs?: number;
 }
 
 export interface CoffeePriceConfig {
@@ -34,9 +45,11 @@ export interface CoffeePriceConfig {
   addresses: AddressConfig[];
   browserProfilePath: string;
   openLowestPurchasePage?: boolean;
+  priceBookPath?: string;
   brands: BrandConfig[];
   sources: SourceConfig;
   browserSources?: BrowserSourcesConfig;
+  externalSources?: ExternalSourceConfig[];
 }
 
 export type BrowserSourcesConfig = Partial<Record<keyof SourceConfig, BrowserSourceSpec>>;
@@ -106,6 +119,17 @@ export interface PlatformSnapshotOffer {
   etaText?: string;
   purchaseUrl?: string;
   unavailableReason?: string;
+}
+
+export interface PriceBook {
+  source?: string;
+  updatedAt?: string;
+  offers?: PriceBookOffer[];
+}
+
+export interface PriceBookOffer extends PlatformSnapshotOffer {
+  addressAliases?: string[];
+  addressQueries?: string[];
 }
 
 export interface BrowserSourceSpec {

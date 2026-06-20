@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -23,6 +23,8 @@ export interface DoctorFacts {
   openclawConfig?: {
     coffeeConfigPath?: string;
     meituanSnapshotPath?: string;
+    priceBookEnabled?: boolean;
+    priceBookPath?: string;
     dmScope?: string;
     weixinEnabled?: boolean;
   };
@@ -69,6 +71,7 @@ export function buildDoctorReport(facts: DoctorFacts): DoctorReport {
     checkGateway(facts.gatewayStatusText),
     checkGatewayPreload(facts.gatewayWrapperText),
     checkCoffeeConfigPath(facts),
+    checkPriceBookPath(facts),
     checkMeituanSnapshotPath(facts),
     checkWeixinPlugin(facts),
     checkWeixinLogin(facts.weixinCapabilitiesText),
@@ -95,9 +98,11 @@ export function formatDoctorReport(report: DoctorReport): string {
 export async function collectDoctorFacts(): Promise<DoctorFacts> {
   const openclawConfig = await readOpenClawConfig();
   const coffeeConfigPath = openclawConfig.plugins?.entries?.["coffee-price"]?.config?.configPath;
+  const coffeeConfig = coffeeConfigPath ? await readCoffeeRuntimeConfig(coffeeConfigPath) : undefined;
   const meituanSnapshotPath =
     openclawConfig.plugins?.entries?.["coffee-price"]?.config?.snapshotPaths?.meituan;
-  const paths = [coffeeConfigPath, meituanSnapshotPath].filter((value): value is string =>
+  const priceBookPath = resolveConfigRelativePath(coffeeConfigPath, coffeeConfig?.priceBookPath);
+  const paths = [coffeeConfigPath, meituanSnapshotPath, priceBookPath].filter((value): value is string =>
     Boolean(value)
   );
 
@@ -113,6 +118,8 @@ export async function collectDoctorFacts(): Promise<DoctorFacts> {
     openclawConfig: {
       coffeeConfigPath,
       meituanSnapshotPath,
+      priceBookEnabled: coffeeConfig?.sources?.priceBook === true,
+      priceBookPath,
       dmScope: openclawConfig.session?.dmScope,
       weixinEnabled: openclawConfig.plugins?.entries?.["openclaw-weixin"]?.enabled === true
     },
@@ -179,6 +186,23 @@ function checkCoffeeConfigPath(facts: DoctorFacts): DoctorCheck {
     return fail("coffee-config-path", "coffee-price 配置路径", "配置文件不存在", path);
   }
   return pass("coffee-config-path", "coffee-price 配置路径", "配置文件路径有效", path);
+}
+
+function checkPriceBookPath(facts: DoctorFacts): DoctorCheck {
+  if (!facts.openclawConfig?.priceBookEnabled) {
+    return warn("pricebook-path", "本地价格库", "sources.priceBook 未启用；默认可用模式会跳过本地价格库");
+  }
+  const path = facts.openclawConfig.priceBookPath;
+  if (!path) {
+    return fail("pricebook-path", "本地价格库", "sources.priceBook 已启用，但没有配置 priceBookPath");
+  }
+  if (hasMojibake(path)) {
+    return fail("pricebook-path", "本地价格库", "路径包含中文乱码，需要改用 ASCII junction 路径", path);
+  }
+  if (!facts.pathExists[path]) {
+    return fail("pricebook-path", "本地价格库", "priceBookPath 文件不存在", path);
+  }
+  return pass("pricebook-path", "本地价格库", "priceBookPath 有效", path);
 }
 
 function checkMeituanSnapshotPath(facts: DoctorFacts): DoctorCheck {
@@ -279,6 +303,27 @@ function compact(value: string): string {
 async function readOpenClawConfig(): Promise<OpenClawJson> {
   const content = await readFile(join(homedir(), ".openclaw", "openclaw.json"), "utf8");
   return JSON.parse(stripJsonBom(content)) as OpenClawJson;
+}
+
+async function readCoffeeRuntimeConfig(path: string): Promise<{
+  priceBookPath?: string;
+  sources?: { priceBook?: boolean };
+}> {
+  try {
+    return JSON.parse(stripJsonBom(await readFile(path, "utf8"))) as {
+      priceBookPath?: string;
+      sources?: { priceBook?: boolean };
+    };
+  } catch {
+    return {};
+  }
+}
+
+function resolveConfigRelativePath(configPath: string | undefined, value: string | undefined): string | undefined {
+  if (!configPath || !value) {
+    return undefined;
+  }
+  return isAbsolute(value) ? value : resolve(dirname(configPath), "..", value);
 }
 
 function stripJsonBom(content: string): string {

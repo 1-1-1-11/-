@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -43,10 +43,34 @@ test("reads local config and preserves default brand coverage", async () => {
   assert.equal(config.addresses[0]?.query, "深圳南山区科技园");
   assert.equal(config.browserProfilePath, "D:/profiles/coffee");
   assert.equal(config.openLowestPurchasePage, true);
+  assert.equal(config.priceBookPath, join(dir, "config", "pricebook.json"));
+  assert.equal(config.sources.priceBook, false);
   assert.equal(config.sources.meituan, true);
+  assert.deepEqual(config.externalSources, []);
   assert.equal(config.browserSources?.meituan?.entryUrl, "https://example.com?q={{drink}}");
   assert.ok(DEFAULT_BRANDS.includes("瑞幸"));
   assert.ok(config.brands.some((brand) => brand.name === "星巴克" && brand.enabled));
+});
+
+test("resolves relative runtime paths from the config root", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-price-paths-"));
+  const configDir = join(dir, "config");
+  await mkdir(configDir, { recursive: true });
+  const configPath = join(configDir, "coffee-price.config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      addresses: [],
+      browserProfilePath: ".runtime/browser-profile",
+      priceBookPath: "config/pricebook.json"
+    }),
+    "utf8"
+  );
+
+  const config = await readConfig(configPath);
+
+  assert.equal(config.browserProfilePath, join(dir, ".runtime", "browser-profile"));
+  assert.equal(config.priceBookPath, join(dir, "config", "pricebook.json"));
 });
 
 test("reads UTF-8 config files with a Windows PowerShell BOM", async () => {

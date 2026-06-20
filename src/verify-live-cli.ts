@@ -12,12 +12,14 @@ import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { DoctorReport } from "./doctor.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
-import type { CoffeePriceConfig, SourceConfig } from "./types.js";
+import type { CoffeePriceConfig } from "./types.js";
+
+type BrowserPlatformSource = "meituan" | "eleme" | "brandOfficial";
 
 export interface VerifyLiveCliOptions {
   configPath: string;
-  auditPaths: Record<keyof SourceConfig, string>;
-  networkPaths: Record<keyof SourceConfig, string>;
+  auditPaths: Record<BrowserPlatformSource, string>;
+  networkPaths: Record<BrowserPlatformSource, string>;
   calibrationReportPath: string;
   ignoreCalibrationReport: boolean;
   outputFormat: "text" | "json";
@@ -40,7 +42,7 @@ export interface VerifyLiveCliDeps {
 
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
 const DEFAULT_CALIBRATION_REPORT_PATH = ".runtime/captures/calibration-report.json";
-const SOURCE_KEYS = ["meituan", "eleme", "brandOfficial"] as const;
+const SOURCE_KEYS: readonly BrowserPlatformSource[] = ["meituan", "eleme", "brandOfficial"];
 
 export function parseVerifyLiveCliArgs(args: string[]): VerifyLiveCliOptions {
   return {
@@ -71,8 +73,8 @@ export async function runVerifyLiveCli(
   const doctor = options.skipDoctor ? undefined : await (deps.runDoctor ?? runDoctor)();
   const readAudit = deps.readAudit ?? readAuditFile;
   const readNetworkLog = deps.readNetworkLog ?? readNetworkLogFile;
-  const audits: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>> = {};
-  const networkLogs: Partial<Record<keyof SourceConfig, BrowserNetworkLogEntry[] | null>> = {};
+  const audits: Partial<Record<BrowserPlatformSource, BrowserSourceSelectorAudit | null>> = {};
+  const networkLogs: Partial<Record<BrowserPlatformSource, BrowserNetworkLogEntry[] | null>> = {};
 
   for (const source of SOURCE_KEYS) {
     audits[source] = await readAudit(options.auditPaths[source]);

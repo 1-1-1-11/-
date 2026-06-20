@@ -7,9 +7,11 @@ import {
   type PurchasePageOpener
 } from "./purchase-page-opener.js";
 import { searchCoffeePrices } from "./search-service.js";
+import { ExternalCommandProvider } from "./providers/external-command-provider.js";
 import { BrowserSourceProvider } from "./providers/browser-source-provider.js";
 import { SnapshotFileProvider } from "./providers/platform-snapshot-provider.js";
-import type { BrowserSourcesConfig, CoffeeSourceProvider, SourceConfig } from "./types.js";
+import { PriceBookProvider } from "./providers/price-book-provider.js";
+import type { BrowserSourcesConfig, CoffeePriceConfig, CoffeeSourceProvider, SourceConfig } from "./types.js";
 
 export interface RunCoffeePriceSearchInput {
   message: string;
@@ -21,6 +23,7 @@ export interface RunCoffeePriceSearchInput {
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
 
 const SOURCE_LABELS: Record<keyof SourceConfig, string> = {
+  priceBook: "本地价格库",
   meituan: "美团",
   eleme: "饿了么",
   brandOfficial: "品牌官方"
@@ -29,7 +32,7 @@ const SOURCE_LABELS: Record<keyof SourceConfig, string> = {
 export async function runCoffeePriceSearch(input: RunCoffeePriceSearchInput): Promise<string> {
   const config = await readConfig(input.configPath ?? process.env.COFFEE_PRICE_CONFIG ?? DEFAULT_CONFIG_PATH);
   const query = parseCoffeeCommand(input.message);
-  const providers = createProviders(config.sources, input.snapshotPaths ?? {}, config.browserSources);
+  const providers = createProviders(config, input.snapshotPaths ?? {});
   const result = await searchCoffeePrices({ query, config, providers });
   const openResult = config.openLowestPurchasePage
     ? await openLowestPurchasePage(result, input.purchasePageOpener)
@@ -38,13 +41,18 @@ export async function runCoffeePriceSearch(input: RunCoffeePriceSearchInput): Pr
 }
 
 function createProviders(
-  sources: SourceConfig,
-  snapshotPaths: Partial<Record<keyof SourceConfig, string>>,
-  browserSources: BrowserSourcesConfig = {}
+  config: CoffeePriceConfig,
+  snapshotPaths: Partial<Record<keyof SourceConfig, string>>
 ): CoffeeSourceProvider[] {
-  return (Object.keys(sources) as (keyof SourceConfig)[])
-    .filter((source) => sources[source])
+  const browserSources: BrowserSourcesConfig = config.browserSources ?? {};
+  const providers: CoffeeSourceProvider[] = (Object.keys(config.sources) as (keyof SourceConfig)[])
+    .filter((source) => config.sources[source])
     .map((source) => {
+      if (source === "priceBook") {
+        return config.priceBookPath
+          ? new PriceBookProvider(source, SOURCE_LABELS[source], config.priceBookPath)
+          : new NotConfiguredProvider(source, SOURCE_LABELS[source]);
+      }
       const snapshotPath = snapshotPaths[source];
       if (snapshotPath) {
         return new SnapshotFileProvider(source, SOURCE_LABELS[source], snapshotPath);
@@ -55,6 +63,10 @@ function createProviders(
       }
       return new NotConfiguredProvider(source, SOURCE_LABELS[source]);
     });
+  for (const source of config.externalSources ?? []) {
+    providers.push(new ExternalCommandProvider(source));
+  }
+  return providers;
 }
 
 function createBrowserProvider(

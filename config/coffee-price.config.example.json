@@ -14,6 +14,7 @@
   ],
   "browserProfilePath": ".runtime/browser-profile",
   "openLowestPurchasePage": true,
+  "priceBookPath": "config/pricebook.json",
   "brands": [
     {
       "name": "瑞幸",
@@ -45,10 +46,21 @@
     }
   ],
   "sources": {
-    "meituan": true,
-    "eleme": true,
-    "brandOfficial": true
+    "priceBook": true,
+    "meituan": false,
+    "eleme": false,
+    "brandOfficial": false
   },
+  "externalSources": [
+    {
+      "id": "mcp-price-feed",
+      "label": "MCP 查价源",
+      "enabled": false,
+      "command": "node",
+      "args": ["scripts/example-external-price-source.mjs"],
+      "timeoutMs": 30000
+    }
+  ],
   "browserSources": {
     "meituan": {
       "source": "meituan",

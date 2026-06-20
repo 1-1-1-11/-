@@ -13,6 +13,7 @@ $CoffeeExampleSnapshotPath = Join-Path $AsciiProjectRoot "config\snapshots\meitu
 $NetworkPreloadPath = Join-Path $AsciiProjectRoot "scripts\openclaw-network-preload.mjs"
 $NetworkPreloadUrl = ([System.Uri]$NetworkPreloadPath).AbsoluteUri
 $OpenClawWeixinNodeOptions = "--import=$NetworkPreloadUrl"
+$OpenClawWorkspaceToolsPath = Join-Path $HOME ".openclaw\workspace\TOOLS.md"
 
 function Test-Command($Name) {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
@@ -76,6 +77,31 @@ set "NODE_OPTIONS=$OpenClawWeixinNodeOptions"
   Set-Content -LiteralPath $gatewayScript -Value $content -Encoding ascii
 }
 
+function Ensure-CoffeeToolWorkspaceNotes {
+  $marker = "## Coffee Price Search"
+  $workspaceDir = Split-Path -Parent $OpenClawWorkspaceToolsPath
+  if (-not (Test-Path -LiteralPath $workspaceDir)) {
+    New-Item -ItemType Directory -Path $workspaceDir | Out-Null
+  }
+  $existing = ""
+  if (Test-Path -LiteralPath $OpenClawWorkspaceToolsPath) {
+    $existing = Get-Content -LiteralPath $OpenClawWorkspaceToolsPath -Raw
+  }
+  if ($existing.Contains($marker)) {
+    return
+  }
+  $notes = @'
+
+## Coffee Price Search
+
+When a message asks to compare coffee prices, call `coffee_price_search`.
+After the tool returns, send the result without deleting fee breakdowns, store names, or purchase URLs.
+Do not replace the result with a summary table unless the user explicitly asks for a summary.
+Do not add jokes, small talk, or extra commentary after the coffee price result.
+'@
+  Add-Content -LiteralPath $OpenClawWorkspaceToolsPath -Value $notes -Encoding utf8
+}
+
 Write-Host "Checking Node and npm..."
 if (-not (Test-Command "node")) {
   throw "Node.js is required. OpenClaw requires Node 22.19+; Node 24 is recommended."
@@ -112,6 +138,7 @@ try {
 Invoke-OpenClaw config set plugins.entries.coffee-price.enabled true
 Invoke-OpenClaw config set plugins.entries.coffee-price.config.configPath $CoffeeConfigPath
 Invoke-OpenClaw config set plugins.entries.coffee-price.config.snapshotPaths.meituan $CoffeeSnapshotPath
+Ensure-CoffeeToolWorkspaceNotes
 
 Write-Host "Installing Tencent Weixin channel plugin..."
 npx -y @tencent-weixin/openclaw-weixin-cli install

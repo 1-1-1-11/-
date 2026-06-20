@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
 
 import type { BrandConfig, CoffeePriceConfig, SourceConfig } from "./types.js";
 
 export const DEFAULT_BRANDS = ["瑞幸", "库迪", "星巴克", "Tims", "Manner", "M Stand", "Peet's"];
 
 const DEFAULT_SOURCES: SourceConfig = {
+  priceBook: false,
   meituan: true,
   eleme: true,
   brandOfficial: true
@@ -12,11 +14,29 @@ const DEFAULT_SOURCES: SourceConfig = {
 
 export async function readConfig(configPath: string): Promise<CoffeePriceConfig> {
   const raw = JSON.parse(stripJsonBom(await readFile(configPath, "utf8"))) as Partial<CoffeePriceConfig>;
-  return normalizeConfig(raw);
+  return resolveRuntimePaths(normalizeConfig(raw), configPath);
 }
 
 function stripJsonBom(content: string): string {
   return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+}
+
+function resolveRuntimePaths(config: CoffeePriceConfig, configPath: string): CoffeePriceConfig {
+  const root = inferConfigRoot(configPath);
+  return {
+    ...config,
+    browserProfilePath: resolvePathFromRoot(root, config.browserProfilePath),
+    priceBookPath: config.priceBookPath ? resolvePathFromRoot(root, config.priceBookPath) : config.priceBookPath
+  };
+}
+
+function inferConfigRoot(configPath: string): string {
+  const configDir = dirname(resolve(configPath));
+  return basename(configDir).toLowerCase() === "config" ? dirname(configDir) : configDir;
+}
+
+function resolvePathFromRoot(root: string, path: string): string {
+  return isAbsolute(path) ? path : resolve(root, path);
 }
 
 export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceConfig {
@@ -25,9 +45,11 @@ export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceCon
     addresses: raw.addresses ?? [],
     browserProfilePath: raw.browserProfilePath ?? ".runtime/browser-profile",
     openLowestPurchasePage: raw.openLowestPurchasePage ?? false,
+    priceBookPath: raw.priceBookPath ?? "config/pricebook.json",
     brands: normalizeBrands(raw.brands),
     sources: { ...DEFAULT_SOURCES, ...(raw.sources ?? {}) },
-    browserSources: raw.browserSources ?? {}
+    browserSources: raw.browserSources ?? {},
+    externalSources: raw.externalSources?.filter((source) => source.enabled !== false) ?? []
   };
 }
 
