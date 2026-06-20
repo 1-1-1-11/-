@@ -12,6 +12,7 @@ export interface WeixinLoginCliOptions {
   timeoutMs: number;
   pollIntervalMs: number;
   qrUrlFile?: string;
+  qrHtmlFile?: string;
   openQr: boolean;
 }
 
@@ -24,6 +25,7 @@ export interface WeixinLoginCliResult {
 export interface WeixinLoginCliDeps {
   completeWeixinLogin?: (input: CompleteWeixinLoginInput) => Promise<CompleteWeixinLoginResult>;
   writeQrUrlFile?: (path: string, content: string) => Promise<void>;
+  writeQrHtmlFile?: (path: string, content: string) => Promise<void>;
   openUrl?: (url: string) => Promise<void>;
 }
 
@@ -32,6 +34,7 @@ export function parseWeixinLoginCliArgs(args: string[]): WeixinLoginCliOptions {
     timeoutMs: readNumberOption(args, "--timeout-ms") ?? 480_000,
     pollIntervalMs: readNumberOption(args, "--poll-ms") ?? 1000,
     qrUrlFile: readStringOption(args, "--qr-url-file"),
+    qrHtmlFile: readStringOption(args, "--qr-html-file"),
     openQr: args.includes("--open-qr")
   };
 }
@@ -44,6 +47,7 @@ export async function runWeixinLoginCli(
   const stdout: string[] = [];
   const stderr: string[] = [];
   const writeQrUrlFile = deps.writeQrUrlFile ?? writeQrUrlFileToDisk;
+  const writeQrHtmlFile = deps.writeQrHtmlFile ?? writeQrHtmlFileToDisk;
   const openUrl = deps.openUrl ?? openUrlInDefaultBrowser;
 
   try {
@@ -57,6 +61,10 @@ export async function runWeixinLoginCli(
         if (options.qrUrlFile) {
           await writeQrUrlFile(options.qrUrlFile, `${url}\n`);
           stdout.push(`QR URL file: ${options.qrUrlFile}`);
+        }
+        if (options.qrHtmlFile) {
+          await writeQrHtmlFile(options.qrHtmlFile, buildQrHtml(url));
+          stdout.push(`QR HTML file: ${options.qrHtmlFile}`);
         }
         if (options.openQr) {
           try {
@@ -119,6 +127,50 @@ function readStringOption(args: string[], name: string): string | undefined {
 async function writeQrUrlFileToDisk(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content, "utf8");
+}
+
+async function writeQrHtmlFileToDisk(path: string, content: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content, "utf8");
+}
+
+function buildQrHtml(url: string): string {
+  const escapedUrl = escapeHtml(url);
+  return [
+    "<!doctype html>",
+    '<html lang="zh-CN">',
+    "<head>",
+    '  <meta charset="utf-8">',
+    "  <title>OpenClaw 微信扫码登录</title>",
+    "</head>",
+    "<body>",
+    "  <h1>OpenClaw 微信扫码登录</h1>",
+    "  <p>请用手机微信打开或扫描此链接。</p>",
+    `  <p><a href="${escapedUrl}" rel="noopener noreferrer">打开微信二维码链接</a></p>`,
+    `  <p><code>${escapedUrl}</code></p>`,
+    "</body>",
+    "</html>",
+    ""
+  ].join("\n");
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
 }
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {

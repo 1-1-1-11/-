@@ -82,6 +82,7 @@ test("live readiness fails on doctor failure, placeholder URLs, and missing sele
   assert.match(report.actions[0]?.command ?? "", /npm run weixin:login/);
   assert.match(report.actions[0]?.command ?? "", /--open-qr/);
   assert.match(report.actions[0]?.command ?? "", /--qr-url-file \.runtime\/weixin-login\/qr-url\.txt/);
+  assert.match(report.actions[0]?.command ?? "", /--qr-html-file \.runtime\/weixin-login\/qr\.html/);
   const text = formatLiveReadinessReport(report);
   assert.match(text, /npm run capture/);
   assert.match(text, /--url "<real-platform-url>"/);
