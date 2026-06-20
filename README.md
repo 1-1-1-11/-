@@ -94,10 +94,10 @@ npm run weixin:login
 如果 Windows PowerShell 5.1 终端里的二维码链接不方便复制，可以把链接写入文件：
 
 ```powershell
-npm run weixin:login -- --qr-url-file .runtime/weixin-login/qr-url.txt
+npm run weixin:login -- --open-qr --qr-url-file .runtime/weixin-login/qr-url.txt
 ```
 
-命令启动后打开这个文本文件里的链接，再用手机微信扫码；文件只保存二维码链接，不保存 token 或密码。
+命令启动后会尝试用默认浏览器打开二维码链接，同时把链接写入文本文件；如果浏览器没有自动打开，就打开这个文本文件里的链接再扫码。文件只保存二维码链接，不保存 token 或密码。
 
 OpenClaw 官方文档当前说明微信 channel 是外部插件，支持私聊和媒体，群聊能力未在插件能力元数据中声明。因此本项目第一版按微信私聊设计。
 
@@ -205,7 +205,7 @@ npm run verify:live
 
 需要给脚本或自动化消费验收结果时，可以运行 `npm run --silent verify:live -- --json`。JSON 输出包含 `status`、逐项 `checks` 和阶段化 `actions`，退出码仍保持一致：`FAIL` 返回非零，`PASS/WARN` 返回 0。加 `--silent` 是为了避免 npm 在 JSON 前打印脚本头。
 
-只想拿下一条可执行命令时，可以运行 `npm run --silent verify:next -- --ignore-calibration-report --command-only`。它会复用 `verify:live` 的检查结果，只输出第一条 action 的命令，例如当前现场状态会输出带 `--qr-url-file .runtime/weixin-login/qr-url.txt` 的微信登录命令；需要查看全部动作时加 `--all`，需要机器读取时加 `--json`。
+只想拿下一条可执行命令时，可以运行 `npm run --silent verify:next -- --ignore-calibration-report --command-only`。它会复用 `verify:live` 的检查结果，只输出第一条 action 的命令，例如当前现场状态会输出带 `--open-qr --qr-url-file .runtime/weixin-login/qr-url.txt` 的微信登录命令；需要查看全部动作时加 `--all`，需要机器读取时加 `--json`。
 
 ## 价格边界
 

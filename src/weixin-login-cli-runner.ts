@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 
 import {
@@ -11,6 +12,7 @@ export interface WeixinLoginCliOptions {
   timeoutMs: number;
   pollIntervalMs: number;
   qrUrlFile?: string;
+  openQr: boolean;
 }
 
 export interface WeixinLoginCliResult {
@@ -22,13 +24,15 @@ export interface WeixinLoginCliResult {
 export interface WeixinLoginCliDeps {
   completeWeixinLogin?: (input: CompleteWeixinLoginInput) => Promise<CompleteWeixinLoginResult>;
   writeQrUrlFile?: (path: string, content: string) => Promise<void>;
+  openUrl?: (url: string) => Promise<void>;
 }
 
 export function parseWeixinLoginCliArgs(args: string[]): WeixinLoginCliOptions {
   return {
     timeoutMs: readNumberOption(args, "--timeout-ms") ?? 480_000,
     pollIntervalMs: readNumberOption(args, "--poll-ms") ?? 1000,
-    qrUrlFile: readStringOption(args, "--qr-url-file")
+    qrUrlFile: readStringOption(args, "--qr-url-file"),
+    openQr: args.includes("--open-qr")
   };
 }
 
@@ -40,6 +44,7 @@ export async function runWeixinLoginCli(
   const stdout: string[] = [];
   const stderr: string[] = [];
   const writeQrUrlFile = deps.writeQrUrlFile ?? writeQrUrlFileToDisk;
+  const openUrl = deps.openUrl ?? openUrlInDefaultBrowser;
 
   try {
     const result = await (deps.completeWeixinLogin ?? completeWeixinLogin)({
@@ -52,6 +57,14 @@ export async function runWeixinLoginCli(
         if (options.qrUrlFile) {
           await writeQrUrlFile(options.qrUrlFile, `${url}\n`);
           stdout.push(`QR URL file: ${options.qrUrlFile}`);
+        }
+        if (options.openQr) {
+          try {
+            await openUrl(url);
+            stdout.push("Opened QR URL in default browser.");
+          } catch (error) {
+            stderr.push(`Failed to open QR URL: ${error instanceof Error ? error.message : String(error)}`);
+          }
         }
       },
       onStatus: (status) => {
@@ -106,6 +119,32 @@ function readStringOption(args: string[], name: string): string | undefined {
 async function writeQrUrlFileToDisk(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content, "utf8");
+}
+
+function openUrlInDefaultBrowser(url: string): Promise<void> {
+  const invocation = getOpenUrlInvocation(url);
+  return new Promise((resolve, reject) => {
+    const child = spawn(invocation.file, invocation.args, {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true
+    });
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+function getOpenUrlInvocation(url: string): { file: string; args: string[] } {
+  if (process.platform === "win32") {
+    return { file: "rundll32.exe", args: ["url.dll,FileProtocolHandler", url] };
+  }
+  if (process.platform === "darwin") {
+    return { file: "open", args: [url] };
+  }
+  return { file: "xdg-open", args: [url] };
 }
 
 function buildResult(stdout: string[], stderr: string[], exitCode: number): WeixinLoginCliResult {

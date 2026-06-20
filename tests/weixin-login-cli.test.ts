@@ -14,12 +14,14 @@ test("parses Weixin login CLI timing and QR URL file options", () => {
     "--poll-ms",
     "500",
     "--qr-url-file",
-    ".runtime/weixin-login/qr-url.txt"
+    ".runtime/weixin-login/qr-url.txt",
+    "--open-qr"
   ]);
 
   assert.equal(parsed.timeoutMs, 120000);
   assert.equal(parsed.pollIntervalMs, 500);
   assert.equal(parsed.qrUrlFile, ".runtime/weixin-login/qr-url.txt");
+  assert.equal(parsed.openQr, true);
 });
 
 test("Weixin login CLI writes the QR URL to a requested file", async () => {
@@ -52,4 +54,26 @@ test("Weixin login CLI writes the QR URL to a requested file", async () => {
   assert.match(result.stdout, /QR URL file/);
   assert.match(result.stdout, /https:\/\/liteapp\.weixin\.qq\.com\/q\/example/);
   assert.match(result.stderr, /等待微信扫码确认超时/);
+});
+
+test("Weixin login CLI can open the QR URL in the default browser", async () => {
+  const openedUrls: string[] = [];
+
+  const result = await runWeixinLoginCli(["--open-qr"], {
+    completeWeixinLogin: async (input) => {
+      await input.onQrCode?.("https://liteapp.weixin.qq.com/q/example");
+      return {
+        status: "timeout",
+        qrcodeUrl: "https://liteapp.weixin.qq.com/q/example",
+        message: "等待微信扫码确认超时"
+      };
+    },
+    openUrl: async (url) => {
+      openedUrls.push(url);
+    }
+  });
+
+  assert.deepEqual(openedUrls, ["https://liteapp.weixin.qq.com/q/example"]);
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stdout, /Opened QR URL/);
 });
