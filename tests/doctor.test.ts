@@ -29,6 +29,8 @@ test("doctor report fails on mojibake config paths, unconfigured Weixin, and iLi
   assert.equal(report.checks.find((check) => check.id === "gateway-preload")?.status, "pass");
   assert.equal(report.checks.find((check) => check.id === "coffee-config-path")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "weixin-login")?.status, "fail");
+  assert.match(report.checks.find((check) => check.id === "weixin-login")?.detail ?? "", /openclaw channels login --channel openclaw-weixin/);
+  assert.match(report.checks.find((check) => check.id === "weixin-login")?.detail ?? "", /npm run weixin:login/);
   assert.equal(report.checks.find((check) => check.id === "ilink-tls")?.status, "fail");
   assert.match(formatDoctorReport(report), /ECONNRESET/);
 });
