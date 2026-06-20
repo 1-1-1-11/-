@@ -433,31 +433,32 @@ function buildExternalSourceActions(
   const actions: LiveReadinessAction[] = [];
   const allDisabled = externalSources.every((source) => source.enabled === false);
 
-  if (!allDisabled) {
-    if (
-      luckinDoctor &&
-      luckinDoctor.status !== "pass" &&
-      externalSources.some((source) => source.id === "luckinMcp" && source.enabled !== false)
-    ) {
-      actions.push({
-        id: "configure-external-source:luckinMcp",
-        label: "配置瑞幸官方 CLI 自取实时源",
-        reason: "瑞幸实时源已启用但专项检查未通过；需要运行官方 CLI 登录并确认 token",
-        command: "npm run luckin:official-login"
-      });
-    }
+  if (
+    luckinDoctor &&
+    luckinDoctor.status !== "pass" &&
+    externalSources.some((source) => source.id === "luckinMcp" && source.enabled !== false)
+  ) {
+    actions.push({
+      id: "configure-external-source:luckinMcp",
+      label: "配置瑞幸官方 CLI 自取实时源",
+      reason: "瑞幸实时源已启用但专项检查未通过；需要运行官方 CLI 登录并确认 token",
+      command: "npm run luckin:official-login"
+    });
+  }
+
+  if (!allDisabled && actions.length === 0) {
     return actions;
   }
 
-  if (externalSources.some((source) => source.id === "orderwiseMcp")) {
+  if (externalSources.some((source) => source.id === "orderwiseMcp" && source.enabled === false)) {
     actions.push({
       id: "configure-external-source:orderwiseMcp",
       label: "配置 OrderWise 多平台 MCP 实时源",
-      reason: "已有 OrderWise MCP 源配置，但仍未启用；需要填入云手机设备映射和 Phone Agent 模型配置",
-      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --meituan \"<meituan-cloud-phone-ip:port>\" --jd \"<jd-cloud-phone-ip:port>\" --taobao \"<taobao-cloud-phone-ip:port>\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+      reason: "已有 OrderWise MCP 源配置但仍未启用；可先用已授权 ADB 设备自动映射美团，作为第一条外卖实时源",
+      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
     });
   }
-  if (externalSources.some((source) => source.id === "luckinMcp")) {
+  if (externalSources.some((source) => source.id === "luckinMcp" && source.enabled === false)) {
     actions.push({
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 CLI 自取实时源",
@@ -465,7 +466,7 @@ function buildExternalSourceActions(
       command: "npm run luckin:official-login"
     });
   }
-  if (externalSources.some((source) => source.id === "meituanApp")) {
+  if (externalSources.some((source) => source.id === "meituanApp" && source.enabled === false)) {
     actions.push({
       id: "configure-external-source:meituanApp",
       label: "检查美团 App 自动化实时源",

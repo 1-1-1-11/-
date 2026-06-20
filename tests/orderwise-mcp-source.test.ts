@@ -65,6 +65,25 @@ test("parses OrderWise MCP source CLI options and env defaults", () => {
   assert.deepEqual(parsed.deviceMapping, { app1: "device-a" });
 });
 
+test("parses OrderWise MCP source options after npm script terminator", () => {
+  const parsed = parseOrderWiseMcpSourceArgs([
+    "--",
+    "--endpoint",
+    "http://127.0.0.1:8703/mcp",
+    "--brands",
+    "ASCIIBRAND",
+    "--apps",
+    "ASCIIAPP",
+    "--max-steps",
+    "1"
+  ]);
+
+  assert.equal(parsed.endpoint, "http://127.0.0.1:8703/mcp");
+  assert.deepEqual(parsed.brands, ["ASCIIBRAND"]);
+  assert.deepEqual(parsed.apps, ["ASCIIAPP"]);
+  assert.equal(parsed.maxSteps, 1);
+});
+
 test("maps OrderWise MCP platforms array into delivery offers", async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const snapshot = await buildOrderWiseMcpSnapshot(
@@ -235,6 +254,7 @@ test("package exposes OrderWise MCP source script", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
 
   assert.match(pkg.scripts["orderwise:mcp-source"], /orderwise-mcp-source-cli\.ts/);
+  assert.match(pkg.scripts["orderwise:mcp-source"], /^node --import tsx /);
 });
 
 test("parses OrderWise doctor options and reports ready service", async () => {
@@ -316,6 +336,12 @@ test("configures OrderWise mapping, local env, and enabled source", async () => 
     "PHONE_KEY",
     "--phone-agent-max-steps",
     "80",
+    "--source-apps",
+    "美团",
+    "--source-brands",
+    "瑞幸,库迪",
+    "--source-max-steps",
+    "60",
     "--enable-source"
   ]);
 
@@ -324,6 +350,9 @@ test("configures OrderWise mapping, local env, and enabled source", async () => 
   assert.equal(parsed.phoneAgentModel, "autoglm-phone-9b");
   assert.equal(parsed.phoneAgentApiKeyEnv, "PHONE_KEY");
   assert.equal(parsed.phoneAgentMaxSteps, 80);
+  assert.deepEqual(parsed.sourceApps, ["美团"]);
+  assert.deepEqual(parsed.sourceBrands, ["瑞幸", "库迪"]);
+  assert.equal(parsed.sourceMaxSteps, 60);
   assert.equal(parsed.enableSource, true);
 
   const writes = new Map<string, string>();
@@ -376,6 +405,88 @@ test("configures OrderWise mapping, local env, and enabled source", async () => 
   assert.match(writes.get("orderwise.env") ?? "", /PHONE_AGENT_API_KEY_ENV="PHONE_KEY"/);
   const nextConfig = JSON.parse(writes.get("config.json") ?? "{}");
   assert.equal(nextConfig.externalSources[0].enabled, true);
+  assert.deepEqual(nextConfig.externalSources[0].args, [
+    "--import",
+    "tsx",
+    "src/orderwise-mcp-source-cli.ts",
+    "--endpoint",
+    "http://127.0.0.1:8703/mcp",
+    "--brands",
+    "瑞幸,库迪",
+    "--apps",
+    "美团",
+    "--max-steps",
+    "60"
+  ]);
+});
+
+test("OrderWise configure can auto-map authorized ADB devices", async () => {
+  const parsed = parseOrderWiseConfigureArgs([
+    "--auto-adb",
+    "--adb",
+    "D:\\tools\\adb.exe",
+    "--source-apps",
+    "美团,京东外卖",
+    "--enable-source"
+  ]);
+
+  assert.equal(parsed.autoAdb, true);
+  assert.equal(parsed.adbPath, "D:\\tools\\adb.exe");
+  assert.deepEqual(parsed.sourceApps, ["美团", "京东外卖"]);
+
+  const writes = new Map<string, string>();
+  const result = await configureOrderWise(
+    {
+      ...parsed,
+      mappingPath: "mapping.json",
+      envPath: "orderwise.env",
+      configPath: "config.json"
+    },
+    {
+      readFile: async (path) => {
+        if (path === "mapping.json") {
+          return JSON.stringify({ app1: "your-cloud-phone-ip:port" });
+        }
+        if (path === "orderwise.env") {
+          return "";
+        }
+        return JSON.stringify({ externalSources: [] });
+      },
+      writeFile: async (path, content) => {
+        writes.set(path, content);
+      },
+      mkdir: async () => undefined,
+      execFile: async (file, args) => {
+        assert.equal(file, "D:\\tools\\adb.exe");
+        assert.deepEqual(args, ["devices", "-l"]);
+        return {
+          stdout: [
+            "List of devices attached",
+            "device-a device product:phone model:A",
+            "device-b device product:phone model:B"
+          ].join("\n"),
+          stderr: ""
+        };
+      }
+    }
+  );
+
+  assert.equal(result.mappingChanged, true);
+  assert.deepEqual(JSON.parse(writes.get("mapping.json") ?? "{}"), {
+    app1: "device-a",
+    app2: "device-b"
+  });
+  const nextConfig = JSON.parse(writes.get("config.json") ?? "{}");
+  assert.deepEqual(nextConfig.externalSources[0].args, [
+    "--import",
+    "tsx",
+    "src/orderwise-mcp-source-cli.ts",
+    "--endpoint",
+    "http://127.0.0.1:8703/mcp",
+    "--apps",
+    "美团,京东外卖"
+  ]);
+  assert.match(result.text, /ADB/);
 });
 
 test("OrderWise configure accepts official self-hosted model env names", async () => {

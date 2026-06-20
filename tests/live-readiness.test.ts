@@ -154,9 +154,47 @@ test("live readiness suggests external source setup when all realtime sources ar
     ]
   );
   assert.match(report.actions[0]?.command ?? "", /npm run orderwise:configure/);
+  assert.match(report.actions[0]?.command ?? "", /--auto-adb/);
+  assert.match(report.actions[0]?.command ?? "", /--source-apps "美团"/);
   assert.match(report.actions[0]?.command ?? "", /--orderwise-model-url/);
   assert.match(report.actions[1]?.command ?? "", /luckin:official-login/);
   assert.match(report.actions[2]?.command ?? "", /meituan:doctor/);
+});
+
+test("live readiness keeps realtime alternatives visible when enabled Luckin is not ready", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    sources: { meituan: false, eleme: false, brandOfficial: false },
+    externalSources: [
+      { id: "luckinMcp", label: "瑞幸官方 CLI", enabled: true },
+      { id: "orderwiseMcp", label: "OrderWise 多平台 MCP", enabled: false },
+      { id: "meituanApp", label: "美团 App 自动化", enabled: false }
+    ]
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: {},
+    luckinDoctor: {
+      status: "fail",
+      checks: [
+        {
+          id: "token",
+          label: "瑞幸 token",
+          status: "fail",
+          message: "未检测到 token"
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(report.actions.map((action) => action.id), [
+    "configure-external-source:luckinMcp",
+    "configure-external-source:orderwiseMcp",
+    "configure-external-source:meituanApp"
+  ]);
+  assert.match(report.actions[1]?.command ?? "", /--auto-adb/);
 });
 
 test("live readiness warns when enabled Luckin source lacks token", () => {

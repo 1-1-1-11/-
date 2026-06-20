@@ -25,6 +25,22 @@ test("parses Meituan app source CLI options", () => {
   assert.equal(parsed.timeoutMs, 30_000);
 });
 
+test("parses Meituan app source options after npm script terminator", () => {
+  const parsed = parseMeituanAppSourceArgs([
+    "--",
+    "--base-url",
+    "http://127.0.0.1:9",
+    "--brands",
+    "ASCIIBRAND",
+    "--timeout-ms",
+    "1"
+  ]);
+
+  assert.equal(parsed.baseUrl, "http://127.0.0.1:9");
+  assert.deepEqual(parsed.brands, ["ASCIIBRAND"]);
+  assert.equal(parsed.timeoutMs, 1);
+});
+
 test("maps meituan-cli HTTP flow into a delivery snapshot", async () => {
   const calls: Array<{ method: string; path: string; query: string; body?: string }> = [];
   const server = createServer(async (request: IncomingMessage, response: ServerResponse) => {
@@ -122,6 +138,7 @@ test("CLI prints a PlatformSnapshot JSON for externalSources", async () => {
 test("package exposes Meituan app source script", async () => {
   const pkg = await import("../package.json", { with: { type: "json" } });
   assert.match(pkg.default.scripts["meituan:app-source"], /meituan-app-source-cli\.ts/);
+  assert.match(pkg.default.scripts["meituan:app-source"], /^node --import tsx /);
 });
 
 function request() {

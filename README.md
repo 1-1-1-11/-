@@ -289,8 +289,10 @@ npm run meituan:app-source
 它作为 `externalSources` 命令运行时会从 stdin 读取 `{ query, address }`，对配置的品牌逐个执行 App 自动化报价，最后输出外卖到手价候选。默认连接 `http://127.0.0.1:18080`，默认品牌池为瑞幸、库迪、星巴克、Tims、Manner、M Stand、Peet's。可以用参数或环境变量调整：
 
 ```powershell
-npm run meituan:app-source -- --base-url "http://127.0.0.1:18080" --brands "瑞幸,库迪,星巴克"
+npm run meituan:app-source -- -- --base-url "http://127.0.0.1:18080" --brands "瑞幸,库迪,星巴克"
 ```
+
+注意：`meituan:app-source` 会从 stdin 读取查价请求；在 Windows PowerShell 5.1 里通过 `npm run` 手动管道测试并传参时，需要使用双 `--`（`npm run ... -- -- --base-url ...`）。作为 OpenClaw `externalSources` 运行时走的是配置里的 `node --import tsx ...`，不受这个手动命令边界影响。
 
 示例配置已包含一个禁用的 `meituanApp` 外部源。启动 meituan-cli 服务并确认手机已登录美团后，把它改成 `enabled: true`，再运行：
 
@@ -323,8 +325,10 @@ npm run meituan:serve
 本项目提供 `orderwise:mcp-source`，默认连接 `http://127.0.0.1:8703/mcp`：
 
 ```powershell
-npm run orderwise:mcp-source -- --endpoint "http://127.0.0.1:8703/mcp" --brands "瑞幸,库迪,星巴克" --apps "美团,京东外卖,淘宝闪购"
+npm run orderwise:mcp-source -- -- --endpoint "http://127.0.0.1:8703/mcp" --brands "瑞幸,库迪,星巴克" --apps "美团,京东外卖,淘宝闪购"
 ```
+
+注意：`orderwise:mcp-source` 同样从 stdin 读取 `{ query, address }`；Windows PowerShell 5.1 下手动管道测试并传参时使用双 `--`。没有 stdin 的配置/诊断命令（例如 `orderwise:configure`、`orderwise:doctor`）仍使用普通 `npm run xxx -- --flag`。
 
 作为 `externalSources` 运行时，它会从 stdin 读取 `{ query, address }`，对每个品牌调用一次 OrderWise `compare_prices(product_name=饮品, seller_name=品牌, apps=...)`，并把 `platforms[]` 或 `platform_results{}` 中的 `price`、`delivery_fee`、`pack_fee`、`total_fee` 映射成外卖到手价候选。示例配置已包含一个禁用的 `orderwiseMcp` 外部源。
 
@@ -349,6 +353,13 @@ npm run orderwise:doctor
 ```powershell
 $env:PHONE_AGENT_API_KEY = "你的 Phone Agent 或模型服务 API key"
 npm run orderwise:configure -- --meituan "10.0.0.10:5555" --jd "10.0.0.11:5555" --taobao "10.0.0.12:5555" --orderwise-model-url "http://localhost:4244/v1" --orderwise-model-name "autoglm-phone-9b" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source
+```
+
+如果先用一台已授权的本机 Android 设备跑美团外卖实时价，可以让配置命令自动读取 `adb devices -l` 并把 `orderwiseMcp` 限定为“美团”：
+
+```powershell
+$env:PHONE_AGENT_API_KEY = "你的 Phone Agent 或模型服务 API key"
+npm run orderwise:configure -- --auto-adb --source-apps "美团" --orderwise-model-url "http://localhost:4244/v1" --orderwise-model-name "autoglm-phone-9b" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source
 ```
 
 `orderwise:configure` 会写入三处本机配置：

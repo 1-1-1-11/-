@@ -1,5 +1,7 @@
+import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { delimiter, dirname, join } from "node:path";
+import { promisify } from "node:util";
 
 import type { CoffeePriceConfig, ExternalSourceConfig } from "./types.js";
 
@@ -15,6 +17,11 @@ export interface OrderWiseConfigureOptions {
   phoneAgentApiKey?: string;
   phoneAgentApiKeyEnv?: string;
   phoneAgentMaxSteps?: number;
+  autoAdb: boolean;
+  adbPath?: string;
+  sourceApps?: string[];
+  sourceBrands?: string[];
+  sourceMaxSteps?: number;
   enableSource: boolean;
   dryRun: boolean;
   json: boolean;
@@ -35,11 +42,24 @@ export interface OrderWiseConfigureDeps {
   readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   writeFile?: (path: string, content: string, encoding: BufferEncoding) => Promise<void>;
   mkdir?: (path: string, options: { recursive: true }) => Promise<string | undefined>;
+  execFile?: (file: string, args: string[], options?: ExecFileOptions) => Promise<ExecFileResult>;
+  env?: NodeJS.ProcessEnv;
+}
+
+export interface ExecFileResult {
+  stdout: string;
+  stderr: string;
+}
+
+interface ExecFileOptions {
+  timeout?: number;
+  env?: NodeJS.ProcessEnv;
 }
 
 const DEFAULT_MAPPING_PATH = ".runtime/orderwise-agent/mcp_mode/mcp_server/app_device_mapping.json";
 const DEFAULT_ENV_PATH = ".runtime/orderwise-agent/.env.local";
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
+const execFileAsync = promisify(execFileCallback);
 
 const APP_FLAG_TO_KEY: Record<string, string> = {
   "--app1": "app1",
@@ -54,12 +74,21 @@ const APP_FLAG_TO_KEY: Record<string, string> = {
   "--淘宝闪购": "app3"
 };
 
+const APP_NAME_TO_KEY: Record<string, string> = {
+  "美团": "app1",
+  "京东外卖": "app2",
+  "淘宝闪购": "app3"
+};
+
+const ORDERWISE_APP_KEYS = ["app1", "app2", "app3"];
+
 export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureOptions {
   const options: OrderWiseConfigureOptions = {
     mappingPath: DEFAULT_MAPPING_PATH,
     envPath: DEFAULT_ENV_PATH,
     configPath: DEFAULT_CONFIG_PATH,
     mapping: {},
+    autoAdb: args.includes("--auto-adb"),
     enableSource: args.includes("--enable-source"),
     dryRun: args.includes("--dry-run"),
     json: args.includes("--json")
@@ -84,6 +113,13 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
         break;
       case "--config":
         options.configPath = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--auto-adb":
+        options.autoAdb = true;
+        break;
+      case "--adb":
+        options.adbPath = requireValue(arg, next);
         index += 1;
         break;
       case "--device-mapping":
@@ -120,6 +156,18 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
         options.phoneAgentMaxSteps = parsePositiveInteger(arg, requireValue(arg, next));
         index += 1;
         break;
+      case "--source-apps":
+        options.sourceApps = splitCsv(requireValue(arg, next));
+        index += 1;
+        break;
+      case "--source-brands":
+        options.sourceBrands = splitCsv(requireValue(arg, next));
+        index += 1;
+        break;
+      case "--source-max-steps":
+        options.sourceMaxSteps = parsePositiveInteger(arg, requireValue(arg, next));
+        index += 1;
+        break;
     }
   }
 
@@ -146,10 +194,13 @@ export async function configureOrderWise(
   const reader = deps.readFile ?? readFile;
   const writer = deps.writeFile ?? writeFile;
   const makeDir = deps.mkdir ?? mkdir;
+  const env = deps.env ?? process.env;
 
   const existingMappingObject = await readJsonObject(options.mappingPath, reader);
   const existingMapping = stringifyRecordValues(existingMappingObject);
-  const nextMapping = buildNextMapping(existingMapping, options.mapping);
+  const autoMapping = options.autoAdb ? await buildAutoAdbMapping(options, deps, env) : {};
+  const effectiveMapping = { ...autoMapping, ...options.mapping };
+  const nextMapping = buildNextMapping(existingMapping, effectiveMapping);
   const mappingContent = `${JSON.stringify(nextMapping, null, 2)}\n`;
   const mappingChanged = !sameStringRecord(existingMapping, nextMapping);
 
@@ -163,7 +214,7 @@ export async function configureOrderWise(
   if (options.enableSource) {
     const rawConfig = JSON.parse(stripJsonBom(await reader(options.configPath, "utf8"))) as Partial<CoffeePriceConfig>;
     const before = JSON.stringify(rawConfig.externalSources ?? []);
-    rawConfig.externalSources = upsertOrderWiseSource(rawConfig.externalSources);
+    rawConfig.externalSources = upsertOrderWiseSource(rawConfig.externalSources, options);
     sourceChanged = JSON.stringify(rawConfig.externalSources ?? []) !== before;
     sourceConfigContent = `${JSON.stringify(rawConfig, null, 2)}\n`;
   }
@@ -231,7 +282,10 @@ function formatResult(
   if (options.enableSource) {
     lines.push(`- orderwiseMcp 外部源: ${changes.sourceChanged ? action : unchanged} ${options.configPath}`);
   }
-  if (!Object.keys(options.mapping).length) {
+  if (options.autoAdb) {
+    lines.push("提示: 已尝试从 ADB 授权设备自动生成 OrderWise app 映射。");
+  }
+  if (!Object.keys(options.mapping).length && !options.autoAdb) {
     lines.push("提示: 未传入设备映射；已有映射会被保留。");
   }
   if (options.phoneAgentApiKey) {
@@ -257,6 +311,100 @@ function buildNextMapping(
     Object.entries(existing).filter(([, value]) => !isPlaceholderDevice(value))
   ) as Record<string, string>;
   return { ...sanitized, ...mapping };
+}
+
+async function buildAutoAdbMapping(
+  options: OrderWiseConfigureOptions,
+  deps: OrderWiseConfigureDeps,
+  env: NodeJS.ProcessEnv
+): Promise<Record<string, string>> {
+  const devices = await discoverAdbDevices(options, deps, env);
+  if (!devices.length) {
+    throw new Error("未检测到可用 ADB 设备；请连接并授权 Android 设备后重试 --auto-adb");
+  }
+  const appKeys = resolveSourceAppKeys(options.sourceApps);
+  return Object.fromEntries(appKeys.map((key, index) => [key, devices[Math.min(index, devices.length - 1)]]));
+}
+
+async function discoverAdbDevices(
+  options: OrderWiseConfigureOptions,
+  deps: OrderWiseConfigureDeps,
+  env: NodeJS.ProcessEnv
+): Promise<string[]> {
+  const execFile = deps.execFile ?? execFileText;
+  const errors: string[] = [];
+  for (const candidate of getAdbCandidates(options, env)) {
+    try {
+      const result = await execFile(candidate, ["devices", "-l"], {
+        timeout: 10_000,
+        env: withAdbPath(env, candidate)
+      });
+      const devices = parseAdbDevices(result.stdout);
+      if (devices.length) {
+        return devices;
+      }
+      errors.push(`${candidate}: 未发现已授权设备`);
+    } catch (error) {
+      errors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  throw new Error(["未检测到可用 ADB 设备", ...errors.slice(0, 3)].join("\n"));
+}
+
+function getAdbCandidates(options: OrderWiseConfigureOptions, env: NodeJS.ProcessEnv): string[] {
+  const candidates = [
+    options.adbPath,
+    env.ORDERWISE_ADB_PATH,
+    env.MEITUAN_ADB_PATH,
+    platformToolsCandidate(env.ANDROID_HOME),
+    platformToolsCandidate(env.ANDROID_SDK_ROOT),
+    wingetPlatformToolsCandidate(env),
+    "adb"
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  return [...new Set(candidates)];
+}
+
+function platformToolsCandidate(root: string | undefined): string | undefined {
+  return root ? join(root, "platform-tools", executableName("adb")) : undefined;
+}
+
+function wingetPlatformToolsCandidate(env: NodeJS.ProcessEnv): string | undefined {
+  if (!env.LOCALAPPDATA) {
+    return undefined;
+  }
+  return join(
+    env.LOCALAPPDATA,
+    "Microsoft",
+    "WinGet",
+    "Packages",
+    "Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe",
+    "platform-tools",
+    executableName("adb")
+  );
+}
+
+function executableName(name: string): string {
+  return process.platform === "win32" ? `${name}.exe` : name;
+}
+
+function withAdbPath(env: NodeJS.ProcessEnv, adbPath: string): NodeJS.ProcessEnv {
+  return {
+    ...env,
+    PATH: `${dirname(adbPath)}${delimiter}${env.PATH ?? ""}`,
+    Path: `${dirname(adbPath)}${delimiter}${env.Path ?? env.PATH ?? ""}`
+  };
+}
+
+function parseAdbDevices(output: string): string[] {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.toLowerCase().startsWith("list of devices"))
+    .map((line) => {
+      const [serial = "", status = ""] = line.split(/\s+/);
+      return status === "device" ? serial : "";
+    })
+    .filter(Boolean);
 }
 
 async function buildEnvEntries(
@@ -378,7 +526,8 @@ async function readOptional(
 }
 
 function upsertOrderWiseSource(
-  externalSources: ExternalSourceConfig[] | undefined
+  externalSources: ExternalSourceConfig[] | undefined,
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps">
 ): ExternalSourceConfig[] {
   const source: ExternalSourceConfig = {
     id: "orderwiseMcp",
@@ -386,7 +535,7 @@ function upsertOrderWiseSource(
     enabled: true,
     type: "command",
     command: "node",
-    args: ["--import", "tsx", "src/orderwise-mcp-source-cli.ts", "--endpoint", "http://127.0.0.1:8703/mcp"],
+    args: buildOrderWiseSourceArgs(options),
     timeoutMs: 600000
   };
   const sources = [...(externalSources ?? [])];
@@ -394,12 +543,48 @@ function upsertOrderWiseSource(
   if (index === -1) {
     return [...sources, source];
   }
+  const existing = sources[index];
   sources[index] = {
     ...source,
-    ...sources[index],
-    enabled: true
+    ...existing,
+    enabled: true,
+    args: shouldRewriteSourceArgs(options) ? buildOrderWiseSourceArgs(options, existing.args) : existing.args ?? source.args
   };
   return sources;
+}
+
+function buildOrderWiseSourceArgs(
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps">,
+  existingArgs?: string[]
+): string[] {
+  const args = existingArgs?.length
+    ? [...existingArgs]
+    : ["--import", "tsx", "src/orderwise-mcp-source-cli.ts", "--endpoint", "http://127.0.0.1:8703/mcp"];
+  if (options.sourceBrands?.length) {
+    setFlag(args, "--brands", options.sourceBrands.join(","));
+  }
+  if (options.sourceApps?.length) {
+    setFlag(args, "--apps", options.sourceApps.join(","));
+  }
+  if (options.sourceMaxSteps !== undefined) {
+    setFlag(args, "--max-steps", String(options.sourceMaxSteps));
+  }
+  return args;
+}
+
+function shouldRewriteSourceArgs(
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps">
+): boolean {
+  return Boolean(options.sourceApps?.length || options.sourceBrands?.length || options.sourceMaxSteps !== undefined);
+}
+
+function setFlag(args: string[], flag: string, value: string): void {
+  const index = args.indexOf(flag);
+  if (index === -1) {
+    args.push(flag, value);
+    return;
+  }
+  args[index + 1] = value;
 }
 
 function parseJsonObject(flag: string, value: string): Record<string, string> {
@@ -408,6 +593,32 @@ function parseJsonObject(flag: string, value: string): Record<string, string> {
     throw new Error(`${flag} 必须是 JSON object`);
   }
   return Object.fromEntries(Object.entries(parsed).map(([key, entry]) => [key, String(entry)]));
+}
+
+function splitCsv(value: string): string[] {
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
+function resolveSourceAppKeys(sourceApps: string[] | undefined): string[] {
+  if (!sourceApps?.length) {
+    return ORDERWISE_APP_KEYS;
+  }
+  const keys = sourceApps
+    .map((app) => APP_NAME_TO_KEY[app] ?? app)
+    .filter((key) => ORDERWISE_APP_KEYS.includes(key));
+  return keys.length ? [...new Set(keys)] : ORDERWISE_APP_KEYS;
+}
+
+async function execFileText(file: string, args: string[], options: ExecFileOptions = {}): Promise<ExecFileResult> {
+  const result = await execFileAsync(file, args, {
+    timeout: options.timeout,
+    env: options.env,
+    encoding: "utf8"
+  });
+  return {
+    stdout: String(result.stdout),
+    stderr: String(result.stderr)
+  };
 }
 
 function parsePositiveInteger(flag: string, value: string): number {
