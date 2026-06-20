@@ -91,6 +91,14 @@ npm run weixin:login
 
 这条命令会直接请求微信 iLink 二维码，扫码成功后把账号 token 写入 `C:\Users\32299\.openclaw\state\openclaw-weixin`，并更新 `C:\Users\32299\.openclaw\openclaw.json` 里的 `channels.openclaw-weixin.channelConfigUpdatedAt`，让 Gateway 重新加载微信 channel 配置。它不保存微信密码，也不绕过验证码；如果 `npm run doctor` 之后仍显示微信未登录，再运行 `npx openclaw gateway restart`。
 
+如果 Windows PowerShell 5.1 终端里的二维码链接不方便复制，可以把链接写入文件：
+
+```powershell
+npm run weixin:login -- --qr-url-file .runtime/weixin-login/qr-url.txt
+```
+
+命令启动后打开这个文本文件里的链接，再用手机微信扫码；文件只保存二维码链接，不保存 token 或密码。
+
 OpenClaw 官方文档当前说明微信 channel 是外部插件，支持私聊和媒体，群聊能力未在插件能力元数据中声明。因此本项目第一版按微信私聊设计。
 
 ## OpenClaw 插件配置
