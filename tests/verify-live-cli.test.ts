@@ -36,7 +36,7 @@ const config: CoffeePriceConfig = {
 
 const audit: BrowserSourceSelectorAudit = {
   source: "meituan",
-  statusMatches: { loginRequired: 0, captchaRequired: 0, noStock: 0 },
+  statusMatches: { loginRequired: 0, captchaRequired: 0, noStock: 0, unavailable: 0 },
   offerRows: { selector: "[data-offer]", count: 1 },
   rows: [
     {

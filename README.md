@@ -127,7 +127,7 @@ openclaw gateway restart
 
 入口 URL 支持模板变量：`{{addressQuery}}`、`{{addressAlias}}`、`{{drink}}`、`{{normalizedDrink}}`、`{{quantity}}`、`{{size}}`、`{{temperature}}`。
 
-真实平台页面需要登录后用浏览器检查 DOM，再把选择器填入 `config/coffee-price.config.json`。如果页面出现验证码或登录失效，工具会返回明确原因，不会继续猜价。
+真实平台页面需要登录后用浏览器检查 DOM，再把选择器填入 `config/coffee-price.config.json`。如果页面出现验证码、登录失效、无货或平台临时不可用，可以在 `selectors.statusTextPatterns` 里配置页面文本片段；工具会返回明确原因，不会继续猜价。
 
 ## 页面捕获与 selector 校准
 

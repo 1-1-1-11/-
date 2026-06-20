@@ -125,6 +125,12 @@ export interface BrowserSourceSelectors {
   loginRequired?: string;
   captchaRequired?: string;
   noStock?: string;
+  statusTextPatterns?: {
+    loginRequired?: string[];
+    captchaRequired?: string[];
+    noStock?: string[];
+    unavailable?: string[];
+  };
   offerRows: string;
   fields: {
     brand: string;

@@ -23,6 +23,7 @@ export interface BrowserSourceSelectorAudit {
     loginRequired: number;
     captchaRequired: number;
     noStock: number;
+    unavailable: number;
   };
   offerRows: {
     selector: string;
@@ -72,9 +73,10 @@ export function auditBrowserSourceHtml(
   return {
     source: spec.source,
     statusMatches: {
-      loginRequired: countSelector($, spec.selectors.loginRequired),
-      captchaRequired: countSelector($, spec.selectors.captchaRequired),
-      noStock: countSelector($, spec.selectors.noStock)
+      loginRequired: countStatusMatch($, spec, "loginRequired"),
+      captchaRequired: countStatusMatch($, spec, "captchaRequired"),
+      noStock: countStatusMatch($, spec, "noStock"),
+      unavailable: countStatusMatch($, spec, "unavailable")
     },
     offerRows: {
       selector: spec.selectors.offerRows,
@@ -146,25 +148,32 @@ function detectStatus(
   $: cheerio.CheerioAPI,
   spec: BrowserSourceSpec
 ): PlatformSnapshot | null {
-  if (spec.selectors.loginRequired && $(spec.selectors.loginRequired).length > 0) {
+  if (countStatusMatch($, spec, "loginRequired") > 0) {
     return {
       source: spec.source,
       status: "login_required",
       message: `${spec.source} 登录态失效，需要重新登录。`
     };
   }
-  if (spec.selectors.captchaRequired && $(spec.selectors.captchaRequired).length > 0) {
+  if (countStatusMatch($, spec, "captchaRequired") > 0) {
     return {
       source: spec.source,
       status: "captcha_required",
       message: `${spec.source} 出现验证码，需要人工处理。`
     };
   }
-  if (spec.selectors.noStock && $(spec.selectors.noStock).length > 0) {
+  if (countStatusMatch($, spec, "noStock") > 0) {
     return {
       source: spec.source,
       status: "no_stock",
       message: `${spec.source} 附近门店无货。`
+    };
+  }
+  if (countStatusMatch($, spec, "unavailable") > 0) {
+    return {
+      source: spec.source,
+      status: "unavailable",
+      message: `${spec.source} 页面暂不可用，请稍后重试或重新捕获。`
     };
   }
   return null;
@@ -194,6 +203,33 @@ function auditOfferRow(
 
 function countSelector($: cheerio.CheerioAPI, selector: string | undefined): number {
   return selector ? $(selector).length : 0;
+}
+
+function countStatusMatch(
+  $: cheerio.CheerioAPI,
+  spec: BrowserSourceSpec,
+  name: "loginRequired" | "captchaRequired" | "noStock" | "unavailable"
+): number {
+  const selector = name === "unavailable" ? undefined : spec.selectors[name];
+  const selectorCount = countSelector($, selector);
+  const patterns = spec.selectors.statusTextPatterns?.[name] ?? [];
+  if (patterns.length === 0) {
+    return selectorCount;
+  }
+
+  const pageText = $.root().text();
+  const titleText = $("title").first().text();
+  const combinedText = `${titleText}\n${pageText}`;
+  const textCount = patterns.filter((pattern) => matchesTextPattern(combinedText, pattern)).length;
+  return selectorCount + textCount;
+}
+
+function matchesTextPattern(value: string, pattern: string): boolean {
+  try {
+    return new RegExp(pattern, "i").test(value);
+  } catch {
+    return value.toLowerCase().includes(pattern.toLowerCase());
+  }
 }
 
 function extractOffer(

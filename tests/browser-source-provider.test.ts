@@ -40,6 +40,19 @@ const spec: BrowserSourceSpec = {
   }
 };
 
+const textStatusSpec: BrowserSourceSpec = {
+  ...spec,
+  selectors: {
+    ...spec.selectors,
+    statusTextPatterns: {
+      loginRequired: ["饿了么-登录", "请登录"],
+      captchaRequired: ["验证码", "安全验证"],
+      noStock: ["附近门店无货"],
+      unavailable: ["网络好像不太给力", "请稍后再试"]
+    }
+  }
+};
+
 test("detects login, captcha, and no-stock states before extracting offers", () => {
   assert.deepEqual(
     extractPlatformSnapshotFromHtml('<main data-login-required>login</main>', spec),
@@ -67,6 +80,30 @@ test("detects login, captcha, and no-stock states before extracting offers", () 
       message: "meituan 附近门店无货。"
     }
   );
+});
+
+test("detects platform status from configured page text patterns", () => {
+  assert.deepEqual(
+    extractPlatformSnapshotFromHtml("<html><title>饿了么-登录</title></html>", textStatusSpec),
+    {
+      source: "meituan",
+      status: "login_required",
+      message: "meituan 登录态失效，需要重新登录。"
+    }
+  );
+
+  assert.deepEqual(
+    extractPlatformSnapshotFromHtml("<main>您的网络好像不太给力，请稍后再试</main>", textStatusSpec),
+    {
+      source: "meituan",
+      status: "unavailable",
+      message: "meituan 页面暂不可用，请稍后重试或重新捕获。"
+    }
+  );
+
+  const audit = auditBrowserSourceHtml("<html><title>饿了么-登录</title></html>", textStatusSpec);
+  assert.equal(audit.statusMatches.loginRequired, 1);
+  assert.equal(audit.statusMatches.unavailable, 0);
 });
 
 test("extracts comparable offers from configured selectors", () => {
@@ -161,6 +198,7 @@ test("audits selector coverage for captured platform HTML", () => {
 
   assert.equal(audit.source, "meituan");
   assert.equal(audit.statusMatches.captchaRequired, 1);
+  assert.equal(audit.statusMatches.unavailable, 0);
   assert.equal(audit.offerRows.selector, "[data-offer]");
   assert.equal(audit.offerRows.count, 2);
   assert.deepEqual(audit.rows[0]?.missingRequiredFields, []);

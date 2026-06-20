@@ -71,6 +71,12 @@ function createBrowserSourceTemplate(source: keyof SourceConfig): BrowserSourceS
       loginRequired: "[data-login-required]",
       captchaRequired: "[data-captcha-required]",
       noStock: "[data-no-stock]",
+      statusTextPatterns: {
+        loginRequired: ["登录", "请登录", "未登录", "授权登录"],
+        captchaRequired: ["验证码", "安全验证", "滑块验证", "verify"],
+        noStock: ["无货", "售罄", "已售完", "附近门店无货"],
+        unavailable: ["网络好像不太给力", "请稍后再试", "网络错误", "重新加载"]
+      },
       offerRows: "[data-offer]",
       fields: {
         brand: "[data-brand]",

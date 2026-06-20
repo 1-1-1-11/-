@@ -41,6 +41,8 @@ test("scaffolds missing browserSources for enabled channels without replacing ex
   assert.equal(result.config.browserSources?.brandOfficial?.source, "brandOfficial");
   assert.match(result.config.browserSources?.eleme?.entryUrl ?? "", /example\.com/);
   assert.equal(result.config.browserSources?.eleme?.selectors.fields.itemPrice, "[data-item-price]");
+  assert.ok(result.config.browserSources?.eleme?.selectors.statusTextPatterns?.loginRequired?.includes("登录"));
+  assert.ok(result.config.browserSources?.eleme?.selectors.statusTextPatterns?.unavailable?.includes("网络好像不太给力"));
 });
 
 test("skips disabled channels when scaffolding browserSources", () => {
