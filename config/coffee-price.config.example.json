@@ -4,12 +4,16 @@
     {
       "alias": "公司",
       "label": "公司",
-      "query": "深圳南山区科技园"
+      "query": "深圳南山区科技园",
+      "longitude": 113.9474,
+      "latitude": 22.5405
     },
     {
       "alias": "家",
       "label": "家",
-      "query": "深圳福田区中心区"
+      "query": "深圳福田区中心区",
+      "longitude": 114.0545,
+      "latitude": 22.5431
     }
   ],
   "browserProfilePath": ".runtime/browser-profile",
@@ -71,6 +75,14 @@
       "command": "node",
       "args": ["scripts/example-external-price-source.mjs"],
       "timeoutMs": 30000
+    },
+    {
+      "id": "luckinMcp",
+      "label": "瑞幸官方 MCP",
+      "enabled": false,
+      "command": "node",
+      "args": ["--import", "tsx", "src/luckin-mcp-source-cli.ts"],
+      "timeoutMs": 45000
     }
   ],
   "browserSources": {

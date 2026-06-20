@@ -16,6 +16,8 @@ export interface AddressConfig {
   alias: string;
   label: string;
   query: string;
+  longitude?: number;
+  latitude?: number;
 }
 
 export interface BrandConfig {

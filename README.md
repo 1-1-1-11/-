@@ -24,7 +24,7 @@ npm install
 Copy-Item config/coffee-price.config.example.json config/coffee-price.config.json
 ```
 
-编辑 `config/coffee-price.config.json`，把 `addresses` 改成你的常用地址。
+编辑 `config/coffee-price.config.json`，把 `addresses` 改成你的常用地址。若要接入瑞幸官方 MCP，地址还需要填写 `longitude` 和 `latitude`，因为官方门店查询按经纬度查附近门店。
 
 默认配置走本地价格库：
 
@@ -177,6 +177,39 @@ openclaw gateway restart
 ```
 
 这个桥接层也可以包装 `mcporter call ...`、内部 HTTP API、定时采集器输出等。它不要求外部源一定是网页抓取；只要输出统一 snapshot，排序和微信回复逻辑就会复用同一套代码。
+
+### 瑞幸官方 MCP 源
+
+瑞幸咖啡 AI 开放平台提供官方 MCP Server。它适合作为第一条真实授权价格源：不抓美团/饿了么 H5，不处理验证码，只走用户 token 授权的官方工具。当前桥接只调用门店查询、商品搜索和订单预览，用于拿自取预估到手价；不会调用 `createOrder`，因此不会自动下单。
+
+先从瑞幸开放平台生成 token，并只保存在本机环境变量或本机文件：
+
+```powershell
+$env:LUCKIN_MCP_TOKEN = "你的瑞幸 MCP token"
+```
+
+或者保存到 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`。不要把 token 写进 Git 仓库。
+
+然后在 `config/coffee-price.config.json` 中启用示例里的 `luckinMcp` 外部源：
+
+```json
+{
+  "id": "luckinMcp",
+  "label": "瑞幸官方 MCP",
+  "enabled": true,
+  "command": "node",
+  "args": ["--import", "tsx", "src/luckin-mcp-source-cli.ts"],
+  "timeoutMs": 45000
+}
+```
+
+可用下面的命令单独验证桥接源。命令会从 stdin 读取 OpenClaw 外部源请求，输出统一 `PlatformSnapshot` JSON：
+
+```powershell
+npm run luckin:mcp-source
+```
+
+缺少 token 时会返回 `login_required`，缺少经纬度时会返回 `unavailable`，不会猜价格。
 
 接入 MCP/授权接口后，推荐用刷新命令把外部源结果写入本地价格库：
 
