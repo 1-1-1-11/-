@@ -153,6 +153,12 @@ npm run capture -- "查公司附近冰美式" --source meituan --url "https://ex
 npm run capture -- "查公司附近冰美式" --source meituan --url "https://example.com/replace-with-real-platform-page" --save-url --manual-ms 120000
 ```
 
+如果要一次校准所有启用渠道，可以用批量命令。仍是逐个打开独立 profile 页面，但会自动保存每个渠道的 HTML、snapshot、selector audit，并把显式传入的真实 URL 写回配置：
+
+```powershell
+npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://example.com/replace-with-real-meituan-page" --url-eleme "https://example.com/replace-with-real-eleme-page" --url-brand "https://example.com/replace-with-real-brand-page" --manual-ms 120000
+```
+
 捕获工具只保存页面内容、解析结果和 selector 诊断，不会保存密码，也不会绕过验证码。即使 `waitForSelector` 等不到候选行，工具也会继续保存 HTML 和 `*.audit.json`，方便判断当前是登录页、验证码页、无货页还是页面结构变了。页面结构变化时，优先用新捕获的 HTML 调整 `browserSources.<source>.selectors`。`*.audit.json` 用来定位选择器问题：先看 `statusMatches` 是否命中登录/验证码/无货，再看 `offerRows.count` 是否为 0，最后看每一行的 `missingRequiredFields`。
 
 ## 购买页自动打开
@@ -177,6 +183,7 @@ npm run config:scaffold -- --config config/coffee-price.config.json --write
 npm run config:set-url -- --source meituan --url "https://example.com/replace-with-real-platform-page" --write
 npm run doctor
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
+npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://example.com/replace-with-real-meituan-page" --url-eleme "https://example.com/replace-with-real-eleme-page" --url-brand "https://example.com/replace-with-real-brand-page" --manual-ms 120000
 npm run verify:live
 ```
 
