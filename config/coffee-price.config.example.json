@@ -63,6 +63,7 @@
   ],
   "sources": {
     "priceBook": true,
+    "cityBenchmark": true,
     "meituan": false,
     "eleme": false,
     "brandOfficial": false

@@ -136,7 +136,7 @@ openclaw gateway restart
 
 ## 本地价格库与 MCP 源
 
-默认运行配置启用 `sources.priceBook`，关闭 `meituan`、`eleme`、`brandOfficial` 网页源。这样微信触发时不会卡在网页登录、人机验证或 403 风控上，而是直接用 `config/pricebook.json` 返回榜单。价格库结构示例：
+默认运行配置启用 `sources.priceBook` 和 `sources.cityBenchmark`，关闭 `meituan`、`eleme`、`brandOfficial` 网页源。这样微信触发时不会卡在网页登录、人机验证或 403 风控上，而是先用 `config/pricebook.json` 返回已知低价，再用城市参考价补齐星巴克/瑞幸/库迪横向对比。价格库结构示例：
 
 ```json
 {
@@ -158,6 +158,8 @@ openclaw gateway restart
   ]
 }
 ```
+
+`cityBenchmark` 是无 token 兜底源，价格逻辑参考 ClawHub 的 Coffee Prices by City：按城市分级和品牌基础价输出参考价。它适合在没有瑞幸 token、没有外卖平台登录态时做品牌横向比较；它不是门店实时售价，不包含配送费、门店库存、平台券和购买页。
 
 `externalSources` 用于接授权接口或 MCP/CLI 工具。工具会把 `{ query, address }` JSON 写入外部命令的 stdin，并要求 stdout 返回一个 `PlatformSnapshot` JSON。示例：
 

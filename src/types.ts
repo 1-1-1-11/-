@@ -27,6 +27,7 @@ export interface BrandConfig {
 
 export interface SourceConfig {
   priceBook?: boolean;
+  cityBenchmark?: boolean;
   meituan: boolean;
   eleme: boolean;
   brandOfficial: boolean;

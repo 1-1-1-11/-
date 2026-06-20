@@ -11,6 +11,7 @@ import { ExternalCommandProvider } from "./providers/external-command-provider.j
 import { BrowserSourceProvider } from "./providers/browser-source-provider.js";
 import { SnapshotFileProvider } from "./providers/platform-snapshot-provider.js";
 import { PriceBookProvider } from "./providers/price-book-provider.js";
+import { CityBenchmarkProvider } from "./providers/city-benchmark-provider.js";
 import type { BrowserSourcesConfig, CoffeePriceConfig, CoffeeSourceProvider, SourceConfig } from "./types.js";
 
 export interface RunCoffeePriceSearchInput {
@@ -24,6 +25,7 @@ const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
 
 const SOURCE_LABELS: Record<keyof SourceConfig, string> = {
   priceBook: "本地价格库",
+  cityBenchmark: "城市参考价",
   meituan: "美团",
   eleme: "饿了么",
   brandOfficial: "品牌官方"
@@ -52,6 +54,9 @@ function createProviders(
         return config.priceBookPath
           ? new PriceBookProvider(source, SOURCE_LABELS[source], config.priceBookPath)
           : new NotConfiguredProvider(source, SOURCE_LABELS[source]);
+      }
+      if (source === "cityBenchmark") {
+        return new CityBenchmarkProvider(source, SOURCE_LABELS[source]);
       }
       const snapshotPath = snapshotPaths[source];
       if (snapshotPath) {

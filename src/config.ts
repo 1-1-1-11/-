@@ -7,6 +7,7 @@ export const DEFAULT_BRANDS = ["瑞幸", "库迪", "星巴克", "Tims", "Manner"
 
 const DEFAULT_SOURCES: SourceConfig = {
   priceBook: false,
+  cityBenchmark: false,
   meituan: true,
   eleme: true,
   brandOfficial: true

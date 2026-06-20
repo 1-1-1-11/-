@@ -160,3 +160,40 @@ test("runs from the local price book without opening browser sources", async () 
   assert.match(reply, /库迪 科技园店/);
   assert.match(reply, /￥9\.90/);
 });
+
+test("uses city benchmark source as a no-token fallback", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-action-benchmark-"));
+  const configPath = join(dir, "config.json");
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      defaultAddressAlias: "公司",
+      addresses: [{ alias: "公司", label: "公司", query: "深圳南山区科技园" }],
+      browserProfilePath: "D:/profiles/coffee",
+      brands: [
+        { name: "星巴克", enabled: true },
+        { name: "瑞幸", enabled: true },
+        { name: "库迪", enabled: true }
+      ],
+      sources: {
+        priceBook: false,
+        cityBenchmark: true,
+        meituan: false,
+        eleme: false,
+        brandOfficial: false
+      }
+    }),
+    "utf8"
+  );
+
+  const reply = await runCoffeePriceSearch({
+    message: "查公司附近冰美式",
+    configPath
+  });
+
+  assert.match(reply, /自取价 Top 3/);
+  assert.match(reply, /深圳参考价（非实时）/);
+  assert.match(reply, /库迪/);
+  assert.match(reply, /￥18\.00/);
+});
