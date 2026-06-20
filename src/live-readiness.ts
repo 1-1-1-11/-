@@ -111,7 +111,7 @@ function checkSourceUrl(source: keyof SourceConfig, entryUrl: string): LiveReadi
       `source-${source}-url`,
       `${source} 入口 URL`,
       "仍是 example.com 占位入口 URL",
-      "请把 browserSources.<source>.entryUrl 改成真实平台搜索或店铺入口"
+      `运行 ${captureWithSaveUrlCommand(source)}，把 <real-platform-url> 换成真实平台搜索或店铺入口`
     );
   }
   if (/^https?:\/\//i.test(entryUrl)) {
@@ -129,7 +129,7 @@ function checkSourceAudit(
       `source-${source}-audit`,
       `${source} selector 诊断`,
       "缺少 selector audit 文件",
-      `运行 npm run capture -- "查公司附近冰美式" --source ${source}`
+      `运行 ${captureAuditCommand(source)}`
     );
   }
 
@@ -190,4 +190,12 @@ function warn(id: string, label: string, message: string, detail?: string): Live
 
 function fail(id: string, label: string, message: string, detail?: string): LiveReadinessCheck {
   return { id, label, status: "fail", message, detail };
+}
+
+function captureWithSaveUrlCommand(source: keyof SourceConfig): string {
+  return `npm run capture -- "查公司附近冰美式" --source ${source} --url "<real-platform-url>" --save-url --manual-ms 120000`;
+}
+
+function captureAuditCommand(source: keyof SourceConfig): string {
+  return `npm run capture -- "查公司附近冰美式" --source ${source} --manual-ms 120000`;
 }

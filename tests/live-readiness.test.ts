@@ -74,7 +74,10 @@ test("live readiness fails on doctor failure, placeholder URLs, and missing sele
   assert.equal(report.checks.find((check) => check.id === "doctor")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "source-meituan-url")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "source-meituan-audit")?.status, "fail");
-  assert.match(formatLiveReadinessReport(report), /npm run capture/);
+  const text = formatLiveReadinessReport(report);
+  assert.match(text, /npm run capture/);
+  assert.match(text, /--url "<real-platform-url>"/);
+  assert.match(text, /--save-url/);
 });
 
 test("live readiness passes with healthy doctor, real source URL, and clean selector audit", () => {
