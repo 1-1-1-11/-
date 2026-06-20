@@ -324,7 +324,7 @@ function formatOfficialCliResult(input: {
     lines.push("", formatLuckinDoctorReport(input.doctor));
   }
   if (input.doctor?.status === "pass") {
-    lines.push("", "瑞幸官方 MCP 已可用于实时自取价；不会调用 createOrder。");
+    lines.push("", "瑞幸官方 CLI 已可用于实时自取价；只调用 order preview，不会调用 order create。");
   } else if (input.doctor) {
     lines.push("", "边界: 官方 CLI 已就绪，但 token 或 source 状态仍未完全通过，微信查价会继续使用兜底源。");
   }

@@ -1,6 +1,7 @@
 import type { DoctorReport, DoctorStatus } from "./doctor.js";
 import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
+import type { LuckinDoctorReport } from "./luckin-mcp-doctor.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
 import type { BrowserSourceSpec, CoffeePriceConfig } from "./types.js";
 
@@ -34,6 +35,7 @@ export interface BuildLiveReadinessReportInput {
   audits?: Partial<Record<BrowserPlatformSource, BrowserSourceSelectorAudit | null>>;
   networkLogs?: Partial<Record<BrowserPlatformSource, BrowserNetworkLogEntry[] | null>>;
   calibrationReport?: CaptureCalibrationReport | null;
+  luckinDoctor?: LuckinDoctorReport | null;
 }
 
 const SOURCE_KEYS: readonly BrowserPlatformSource[] = ["meituan", "eleme", "brandOfficial"];
@@ -48,6 +50,10 @@ export function buildLiveReadinessReport(
   const externalSourcesCheck = checkExternalSources(input.config);
   if (externalSourcesCheck) {
     checks.push(externalSourcesCheck);
+  }
+  const luckinCheck = checkLuckinRealtimeSource(input.config, input.luckinDoctor);
+  if (luckinCheck) {
+    checks.push(luckinCheck);
   }
   if (input.calibrationReport) {
     checks.push(checkCalibrationReport(input.calibrationReport));
@@ -148,6 +154,29 @@ function checkExternalSources(config: CoffeePriceConfig): LiveReadinessCheck | u
     "实时外部源",
     "未启用 MCP/授权实时源；当前会使用本地价格库和城市参考价",
     candidates ? `可配置源: ${candidates}` : undefined
+  );
+}
+
+function checkLuckinRealtimeSource(
+  config: CoffeePriceConfig,
+  luckinDoctor: LuckinDoctorReport | null | undefined
+): LiveReadinessCheck | undefined {
+  const luckinSource = config.externalSources?.find((source) => source.id === "luckinMcp");
+  if (!luckinSource || luckinSource.enabled === false || !luckinDoctor) {
+    return undefined;
+  }
+  if (luckinDoctor.status === "pass") {
+    return pass("external-source:luckinMcp", "瑞幸官方 CLI 实时源", "瑞幸 token、地址和 source 已通过专项检查");
+  }
+  const failing = luckinDoctor.checks
+    .filter((check) => check.status !== "pass")
+    .map((check) => [check.label, check.message].filter(Boolean).join(": "))
+    .join("; ");
+  return warn(
+    "external-source:luckinMcp",
+    "瑞幸官方 CLI 实时源",
+    "瑞幸实时自取价尚未 ready；微信查价会继续使用其它可用来源",
+    failing || undefined
   );
 }
 
@@ -306,7 +335,7 @@ function captureAuditCommand(source: BrowserPlatformSource): string {
 function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveReadinessAction[] {
   const actions: LiveReadinessAction[] = [];
 
-  actions.push(...buildExternalSourceActions(input.config));
+  actions.push(...buildExternalSourceActions(input.config, input.luckinDoctor));
 
   for (const check of input.doctor?.checks ?? []) {
     if (check.status !== "fail") {
@@ -393,13 +422,33 @@ function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveRe
   return actions;
 }
 
-function buildExternalSourceActions(config: CoffeePriceConfig): LiveReadinessAction[] {
+function buildExternalSourceActions(
+  config: CoffeePriceConfig,
+  luckinDoctor: LuckinDoctorReport | null | undefined
+): LiveReadinessAction[] {
   const externalSources = config.externalSources ?? [];
-  if (externalSources.length === 0 || externalSources.some((source) => source.enabled !== false)) {
+  if (externalSources.length === 0) {
     return [];
   }
-
   const actions: LiveReadinessAction[] = [];
+  const allDisabled = externalSources.every((source) => source.enabled === false);
+
+  if (!allDisabled) {
+    if (
+      luckinDoctor &&
+      luckinDoctor.status !== "pass" &&
+      externalSources.some((source) => source.id === "luckinMcp" && source.enabled !== false)
+    ) {
+      actions.push({
+        id: "configure-external-source:luckinMcp",
+        label: "配置瑞幸官方 CLI 自取实时源",
+        reason: "瑞幸实时源已启用但专项检查未通过；需要运行官方 CLI 登录并确认 token",
+        command: "npm run luckin:official-login"
+      });
+    }
+    return actions;
+  }
+
   if (externalSources.some((source) => source.id === "orderwiseMcp")) {
     actions.push({
       id: "configure-external-source:orderwiseMcp",
@@ -411,8 +460,8 @@ function buildExternalSourceActions(config: CoffeePriceConfig): LiveReadinessAct
   if (externalSources.some((source) => source.id === "luckinMcp")) {
     actions.push({
       id: "configure-external-source:luckinMcp",
-      label: "配置瑞幸官方 MCP 自取实时源",
-      reason: "已有瑞幸官方 MCP 源配置，但仍未启用；需要登录瑞幸开放平台或导入 token",
+      label: "配置瑞幸官方 CLI 自取实时源",
+      reason: "已有瑞幸实时源配置，但仍未启用；需要运行官方 CLI 登录并启用 source",
       command: "npm run luckin:official-login"
     });
   }

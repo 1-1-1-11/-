@@ -15,7 +15,7 @@ test("parses Luckin enable CLI options", () => {
   assert.equal(parsed.dryRun, true);
 });
 
-test("enables an existing disabled Luckin MCP source without touching token fields", async () => {
+test("enables and migrates an existing disabled Luckin MCP source without touching token fields", async () => {
   let written = "";
   const result = await enableLuckinMcp(
     { configPath: "config.json", dryRun: false },
@@ -42,7 +42,42 @@ test("enables an existing disabled Luckin MCP source without touching token fiel
   assert.equal(result.changed, true);
   const next = JSON.parse(written);
   assert.equal(next.externalSources[0].enabled, true);
+  assert.equal(next.externalSources[0].label, "瑞幸官方 CLI");
+  assert.deepEqual(next.externalSources[0].args, ["--import", "tsx", "src/luckin-official-source-cli.ts"]);
+  assert.equal(next.externalSources[0].timeoutMs, 120000);
   assert.equal("token" in next.externalSources[0], false);
+});
+
+test("enables a custom Luckin source without replacing its command", async () => {
+  let written = "";
+  const result = await enableLuckinMcp(
+    { configPath: "config.json", dryRun: false },
+    {
+      readFile: async () =>
+        JSON.stringify({
+          externalSources: [
+            {
+              id: "luckinMcp",
+              label: "自定义瑞幸源",
+              enabled: false,
+              command: "node",
+              args: ["custom-luckin-source.mjs"],
+              timeoutMs: 30000
+            }
+          ]
+        }),
+      writeFile: async (_path, content) => {
+        written = content;
+      }
+    }
+  );
+
+  assert.equal(result.changed, true);
+  const next = JSON.parse(written);
+  assert.equal(next.externalSources[0].enabled, true);
+  assert.equal(next.externalSources[0].label, "自定义瑞幸源");
+  assert.deepEqual(next.externalSources[0].args, ["custom-luckin-source.mjs"]);
+  assert.equal(next.externalSources[0].timeoutMs, 30000);
 });
 
 test("adds Luckin MCP source when it is missing", async () => {
@@ -57,6 +92,7 @@ test("adds Luckin MCP source when it is missing", async () => {
   const next = JSON.parse(written);
   assert.equal(next.externalSources[0].id, "luckinMcp");
   assert.equal(next.externalSources[0].enabled, true);
+  assert.deepEqual(next.externalSources[0].args, ["--import", "tsx", "src/luckin-official-source-cli.ts"]);
 });
 
 test("dry-run reports pending change without writing", async () => {

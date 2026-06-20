@@ -199,7 +199,7 @@ function formatSetupResult(input: {
   refreshError?: string;
   requireLive: boolean;
 }): string {
-  const lines = [`瑞幸 MCP 设置结果: ${input.status.toUpperCase()}`];
+  const lines = [`瑞幸实时源设置结果: ${input.status.toUpperCase()}`];
   if (input.importedToken && input.importMessage) {
     lines.push("", input.importMessage);
   }
@@ -218,18 +218,18 @@ function formatSetupResult(input: {
   }
 
   if (input.status === "ready") {
-    lines.push("", "可用状态: 微信查价会使用瑞幸官方 MCP 实时自取价，并保留其他已启用来源。");
+    lines.push("", "可用状态: 微信查价会使用瑞幸官方 CLI 实时自取价，并保留其他已启用来源。");
   } else if (input.status === "degraded") {
     lines.push(
       "",
       `降级可用: 微信查价仍会使用 ${input.fallbackSources.join("、")} 返回可解释结果。`,
-      "边界: 瑞幸官方 MCP 实时价需要 token；不会绕过登录、人机验证或平台风控。"
+      "边界: 瑞幸官方 CLI 实时价需要 token；不会绕过登录、人机验证或平台风控。"
     );
   } else {
     lines.push(
       "",
       input.requireLive
-        ? "阻塞原因: 已要求实时 MCP 可用，但 token/配置/刷新检查未全部通过。"
+        ? "阻塞原因: 已要求实时源可用，但 token/配置/刷新检查未全部通过。"
         : "阻塞原因: 没有可用实时源，也没有启用本地价格库或城市参考价。"
     );
   }

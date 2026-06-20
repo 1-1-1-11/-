@@ -20,11 +20,11 @@ export interface LuckinEnableDeps {
 
 const DEFAULT_LUCKIN_SOURCE: ExternalSourceConfig = {
   id: "luckinMcp",
-  label: "瑞幸官方 MCP",
+  label: "瑞幸官方 CLI",
   enabled: true,
   command: "node",
-  args: ["--import", "tsx", "src/luckin-mcp-source-cli.ts"],
-  timeoutMs: 45000
+  args: ["--import", "tsx", "src/luckin-official-source-cli.ts"],
+  timeoutMs: 120000
 };
 
 export function parseLuckinEnableArgs(args: string[]): LuckinEnableOptions {
@@ -98,12 +98,22 @@ function upsertLuckinSource(
   if (index === -1) {
     return [...sources, DEFAULT_LUCKIN_SOURCE];
   }
+  const current = sources[index];
+  const shouldMigrateLegacySource = isLegacyLuckinMcpCommand(current);
   sources[index] = {
     ...DEFAULT_LUCKIN_SOURCE,
-    ...sources[index],
-    enabled: true
+    ...current,
+    enabled: true,
+    label: shouldMigrateLegacySource ? DEFAULT_LUCKIN_SOURCE.label : current.label ?? DEFAULT_LUCKIN_SOURCE.label,
+    command: shouldMigrateLegacySource ? DEFAULT_LUCKIN_SOURCE.command : current.command ?? DEFAULT_LUCKIN_SOURCE.command,
+    args: shouldMigrateLegacySource ? DEFAULT_LUCKIN_SOURCE.args : current.args ?? DEFAULT_LUCKIN_SOURCE.args,
+    timeoutMs: shouldMigrateLegacySource ? DEFAULT_LUCKIN_SOURCE.timeoutMs : current.timeoutMs ?? DEFAULT_LUCKIN_SOURCE.timeoutMs
   };
   return sources;
+}
+
+function isLegacyLuckinMcpCommand(source: ExternalSourceConfig): boolean {
+  return source.command === "node" && (source.args ?? []).some((arg) => /luckin-mcp-source-cli\.ts$/.test(arg));
 }
 
 function stripJsonBom(content: string): string {

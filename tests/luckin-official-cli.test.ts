@@ -119,7 +119,7 @@ test("downloads official CLI, runs login, enables source, and checks doctor", as
   assert.deepEqual(commands, [{ command: result.install.executablePath, args: ["login"] }]);
   assert.equal(result.enable?.changed, true);
   assert.equal(result.doctor?.status, "pass");
-  assert.match(result.text, /瑞幸官方 MCP 已可用于实时自取价/);
+  assert.match(result.text, /瑞幸官方 CLI 已可用于实时自取价/);
 });
 
 test("official CLI setup fails on checksum mismatch", async () => {

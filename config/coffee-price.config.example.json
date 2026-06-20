@@ -98,12 +98,12 @@
     },
     {
       "id": "luckinMcp",
-      "label": "瑞幸官方 MCP",
+      "label": "瑞幸官方 CLI",
       "enabled": false,
       "type": "command",
       "command": "node",
-      "args": ["--import", "tsx", "src/luckin-mcp-source-cli.ts"],
-      "timeoutMs": 45000
+      "args": ["--import", "tsx", "src/luckin-official-source-cli.ts"],
+      "timeoutMs": 120000
     },
     {
       "id": "meituanApp",

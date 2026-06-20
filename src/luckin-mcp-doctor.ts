@@ -90,7 +90,7 @@ export async function runLuckinDoctor(
 }
 
 export function formatLuckinDoctorReport(report: LuckinDoctorReport): string {
-  const lines = [`瑞幸官方 MCP 源检查`, `总体: ${report.status.toUpperCase()}`];
+  const lines = [`瑞幸实时源检查`, `总体: ${report.status.toUpperCase()}`];
   for (const check of report.checks) {
     lines.push(`- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`);
     if (check.detail) {
@@ -174,11 +174,11 @@ function checkEndpoint(env: NodeJS.ProcessEnv): LuckinDoctorCheck {
   try {
     const url = new URL(sourceOptions.endpoint);
     if (url.protocol !== "https:") {
-      return warn("endpoint", "MCP endpoint", "endpoint 不是 https 地址", sourceOptions.endpoint);
+      return warn("endpoint", "授权端点", "endpoint 不是 https 地址", sourceOptions.endpoint);
     }
-    return pass("endpoint", "MCP endpoint", sourceOptions.endpoint);
+    return pass("endpoint", "授权端点", sourceOptions.endpoint);
   } catch {
-    return fail("endpoint", "MCP endpoint", "LUCKIN_MCP_URL 不是有效 URL", sourceOptions.endpoint);
+    return fail("endpoint", "授权端点", "LUCKIN_MCP_URL 不是有效 URL", sourceOptions.endpoint);
   }
 }
 

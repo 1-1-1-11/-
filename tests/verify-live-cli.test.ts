@@ -99,6 +99,41 @@ test("live verification CLI returns a passing report from injected healthy depen
   assert.match(result.text, /总体: PASS/);
 });
 
+test("live verification CLI includes Luckin doctor when Luckin source is configured", async () => {
+  let luckinDoctorCalled = false;
+  const result = await runVerifyLiveCli(["--ignore-calibration-report"], {
+    readConfig: async () => ({
+      ...config,
+      sources: { meituan: false, eleme: false, brandOfficial: false },
+      externalSources: [{ id: "luckinMcp", label: "瑞幸官方 CLI", enabled: true }]
+    }),
+    runDoctor: async () => ({ status: "pass", checks: [] }),
+    runLuckinDoctor: async () => {
+      luckinDoctorCalled = true;
+      return {
+        status: "fail",
+        checks: [
+          {
+            id: "token",
+            label: "瑞幸 token",
+            status: "fail",
+            message: "未检测到 token"
+          }
+        ]
+      };
+    },
+    readAudit: async () => null,
+    readNetworkLog: async () => null,
+    readCalibrationReport: async () => null
+  });
+
+  assert.equal(luckinDoctorCalled, true);
+  assert.equal(result.report.status, "warn");
+  assert.equal(result.exitCode, 0);
+  assert.match(result.text, /瑞幸官方 CLI 实时源/);
+  assert.deepEqual(result.report.actions.map((action) => action.id), ["configure-external-source:luckinMcp"]);
+});
+
 test("live verification CLI includes failed calibration report details", async () => {
   const calibrationReport: CaptureCalibrationReport = {
     status: "fail",

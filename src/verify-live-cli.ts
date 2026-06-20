@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { readConfig } from "./config.js";
 import { runDoctor } from "./doctor.js";
+import { runLuckinDoctor, type LuckinDoctorReport } from "./luckin-mcp-doctor.js";
 import {
   buildLiveReadinessReport,
   defaultAuditPath,
@@ -35,6 +36,7 @@ export interface VerifyLiveCliResult {
 export interface VerifyLiveCliDeps {
   readConfig?: (path: string) => Promise<CoffeePriceConfig>;
   runDoctor?: () => Promise<DoctorReport>;
+  runLuckinDoctor?: (options: { configPath: string; json: boolean }) => Promise<LuckinDoctorReport>;
   readAudit?: (path: string) => Promise<BrowserSourceSelectorAudit | null>;
   readNetworkLog?: (path: string) => Promise<BrowserNetworkLogEntry[] | null>;
   readCalibrationReport?: (path: string) => Promise<CaptureCalibrationReport | null>;
@@ -73,6 +75,9 @@ export async function runVerifyLiveCli(
     ? await deps.readConfig(options.configPath)
     : await readConfig(options.configPath, { includeDisabledExternalSources: true });
   const doctor = options.skipDoctor ? undefined : await (deps.runDoctor ?? runDoctor)();
+  const luckinDoctor = !options.skipDoctor && hasLuckinSource(config)
+    ? await (deps.runLuckinDoctor ?? runLuckinDoctor)({ configPath: options.configPath, json: false })
+    : undefined;
   const readAudit = deps.readAudit ?? readAuditFile;
   const readNetworkLog = deps.readNetworkLog ?? readNetworkLogFile;
   const audits: Partial<Record<BrowserPlatformSource, BrowserSourceSelectorAudit | null>> = {};
@@ -86,7 +91,7 @@ export async function runVerifyLiveCli(
   const calibrationReport = options.ignoreCalibrationReport
     ? null
     : await (deps.readCalibrationReport ?? readCalibrationReportFile)(options.calibrationReportPath);
-  const report = buildLiveReadinessReport({ config, doctor, audits, networkLogs, calibrationReport });
+  const report = buildLiveReadinessReport({ config, doctor, audits, networkLogs, calibrationReport, luckinDoctor });
   return {
     text: options.outputFormat === "json"
       ? `${JSON.stringify(report, null, 2)}\n`
@@ -94,6 +99,10 @@ export async function runVerifyLiveCli(
     exitCode: report.status === "fail" ? 1 : 0,
     report
   };
+}
+
+function hasLuckinSource(config: CoffeePriceConfig): boolean {
+  return (config.externalSources ?? []).some((source) => source.id === "luckinMcp");
 }
 
 function readOption(args: string[], name: string): string | undefined {

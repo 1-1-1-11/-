@@ -159,6 +159,38 @@ test("live readiness suggests external source setup when all realtime sources ar
   assert.match(report.actions[2]?.command ?? "", /meituan:doctor/);
 });
 
+test("live readiness warns when enabled Luckin source lacks token", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    sources: { meituan: false, eleme: false, brandOfficial: false },
+    externalSources: [
+      { id: "luckinMcp", label: "瑞幸官方 CLI", enabled: true }
+    ]
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: {},
+    luckinDoctor: {
+      status: "fail",
+      checks: [
+        {
+          id: "token",
+          label: "瑞幸 token",
+          status: "fail",
+          message: "未检测到 token"
+        }
+      ]
+    }
+  });
+
+  assert.equal(report.status, "warn");
+  assert.equal(report.checks.find((check) => check.id === "external-source:luckinMcp")?.status, "warn");
+  assert.deepEqual(report.actions.map((action) => action.id), ["configure-external-source:luckinMcp"]);
+  assert.match(report.actions[0]?.command ?? "", /luckin:official-login/);
+});
+
 test("live readiness actions suggest selector capture after a real source URL is configured", () => {
   const config: CoffeePriceConfig = {
     ...baseConfig,
