@@ -17,6 +17,7 @@ export interface VerifyLiveCliOptions {
   auditPaths: Record<keyof SourceConfig, string>;
   calibrationReportPath: string;
   ignoreCalibrationReport: boolean;
+  outputFormat: "text" | "json";
   skipDoctor: boolean;
 }
 
@@ -47,6 +48,7 @@ export function parseVerifyLiveCliArgs(args: string[]): VerifyLiveCliOptions {
     },
     calibrationReportPath: readOption(args, "--calibration-report") ?? DEFAULT_CALIBRATION_REPORT_PATH,
     ignoreCalibrationReport: args.includes("--ignore-calibration-report"),
+    outputFormat: args.includes("--json") ? "json" : "text",
     skipDoctor: args.includes("--skip-doctor")
   };
 }
@@ -70,7 +72,9 @@ export async function runVerifyLiveCli(
     : await (deps.readCalibrationReport ?? readCalibrationReportFile)(options.calibrationReportPath);
   const report = buildLiveReadinessReport({ config, doctor, audits, calibrationReport });
   return {
-    text: formatLiveReadinessReport(report),
+    text: options.outputFormat === "json"
+      ? `${JSON.stringify(report, null, 2)}\n`
+      : formatLiveReadinessReport(report),
     exitCode: report.status === "fail" ? 1 : 0,
     report
   };

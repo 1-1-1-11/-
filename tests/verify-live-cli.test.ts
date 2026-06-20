@@ -62,6 +62,7 @@ test("parses live verification CLI defaults and audit overrides", () => {
     "--calibration-report",
     ".runtime/live/calibration-report.json",
     "--ignore-calibration-report",
+    "--json",
     "--skip-doctor"
   ]);
 
@@ -70,6 +71,7 @@ test("parses live verification CLI defaults and audit overrides", () => {
   assert.equal(parsed.auditPaths.eleme, ".runtime/captures/eleme.audit.json");
   assert.equal(parsed.calibrationReportPath, ".runtime/live/calibration-report.json");
   assert.equal(parsed.ignoreCalibrationReport, true);
+  assert.equal(parsed.outputFormat, "json");
   assert.equal(parsed.skipDoctor, true);
 });
 
@@ -150,6 +152,23 @@ test("live verification CLI can ignore a stale calibration report", async () => 
   assert.equal(result.report.status, "pass");
   assert.equal(result.exitCode, 0);
   assert.doesNotMatch(result.text, /captcha required/);
+});
+
+test("live verification CLI can emit a machine-readable JSON report", async () => {
+  const result = await runVerifyLiveCli(["--json"], {
+    readConfig: async () => config,
+    runDoctor: async () => ({ status: "pass", checks: [] }),
+    readAudit: async () => audit,
+    readCalibrationReport: async () => null
+  });
+
+  const parsed = JSON.parse(result.text) as typeof result.report;
+
+  assert.equal(parsed.status, "pass");
+  assert.equal(Array.isArray(parsed.checks), true);
+  assert.equal(Array.isArray(parsed.actions), true);
+  assert.deepEqual(parsed.actions, []);
+  assert.doesNotMatch(result.text, /总体/);
 });
 
 test("package exposes live verification script", async () => {
