@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
+import { applyBrowserSearchAction } from "../browser-search-action.js";
 import { waitForOptionalSelector } from "../browser-wait.js";
 import { parsePlatformSnapshot } from "./platform-snapshot-provider.js";
 import type {
@@ -130,6 +131,10 @@ export class BrowserSourceProvider implements CoffeeSourceProvider {
       await page.goto(url, {
         waitUntil: this.spec.browser?.waitUntil ?? "domcontentloaded",
         timeout: this.spec.browser?.timeoutMs ?? 60_000
+      });
+      await applyBrowserSearchAction(page, {
+        search: this.spec.browser?.search,
+        searchText: input.query.drink
       });
       await waitForOptionalSelector(
         page,

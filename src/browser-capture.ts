@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
+import { applyBrowserSearchAction } from "./browser-search-action.js";
 import { waitForOptionalSelector } from "./browser-wait.js";
 import { readConfig } from "./config.js";
 import { setBrowserSourceEntryUrl } from "./config-set-url.js";
@@ -23,6 +24,7 @@ export interface BrowserPageLoadRequest {
   url: string;
   profilePath: string;
   spec: BrowserSourceSpec;
+  searchText?: string;
   manualWaitMs?: number;
 }
 
@@ -76,6 +78,7 @@ export async function captureBrowserSource(
     url: entryUrl,
     profilePath: config.browserProfilePath,
     spec,
+    searchText: query.drink,
     manualWaitMs: input.manualWaitMs
   });
   const snapshot = extractPlatformSnapshotFromHtml(page.html, spec, page.url);
@@ -115,6 +118,10 @@ async function loadPageWithPersistentProfile(
     await page.goto(request.url, {
       waitUntil: request.spec.browser?.waitUntil ?? "domcontentloaded",
       timeout: request.spec.browser?.timeoutMs ?? 60_000
+    });
+    await applyBrowserSearchAction(page, {
+      search: request.spec.browser?.search,
+      searchText: request.searchText
     });
     if (request.manualWaitMs && request.manualWaitMs > 0) {
       await page.waitForTimeout(request.manualWaitMs);

@@ -127,6 +127,18 @@ openclaw gateway restart
 
 入口 URL 支持模板变量：`{{addressQuery}}`、`{{addressAlias}}`、`{{drink}}`、`{{normalizedDrink}}`、`{{quantity}}`、`{{size}}`、`{{temperature}}`。
 
+有些 H5 页面只靠 URL 参数不会真正触发搜索，可以在 `browser.search` 里配置页面动作。工具会打开入口页后填入 `drink`，如果配置了 `submitSelector` 就点击提交；否则会在输入框按 Enter；`waitAfterMs` 用于等待结果页或接口完成刷新。这个动作同时用于 `npm run capture` 和微信触发的实际浏览器查价。
+
+```json
+"browser": {
+  "search": {
+    "inputSelector": "input[type=\"search\"]",
+    "submitSelector": "button[type=\"submit\"]",
+    "waitAfterMs": 3000
+  }
+}
+```
+
 真实平台页面需要登录后用浏览器检查 DOM，再把选择器填入 `config/coffee-price.config.json`。如果页面出现验证码、登录失效、无货或平台临时不可用，可以在 `selectors.statusTextPatterns` 里配置页面文本片段；工具会返回明确原因，不会继续猜价。
 
 ## 页面捕获与 selector 校准

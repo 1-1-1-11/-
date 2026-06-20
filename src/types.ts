@@ -118,6 +118,11 @@ export interface BrowserSourceSpec {
     waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
     waitForSelector?: string;
     timeoutMs?: number;
+    search?: {
+      inputSelector: string;
+      submitSelector?: string;
+      waitAfterMs?: number;
+    };
   };
 }
 

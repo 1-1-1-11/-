@@ -37,6 +37,12 @@ test("captures a configured browser source into HTML and snapshot files", async 
               itemPrice: "[data-item-price]",
               purchaseUrl: "[data-purchase-url]"
             }
+          },
+          browser: {
+            search: {
+              inputSelector: "input[type=search]",
+              submitSelector: "button[type=submit]"
+            }
           }
         }
       }
@@ -72,6 +78,8 @@ test("captures a configured browser source into HTML and snapshot files", async 
 
   assert.equal(requests.length, 1);
   assert.equal(requests[0]?.profilePath, "D:/profiles/coffee");
+  assert.equal(requests[0]?.searchText, "冰美式");
+  assert.equal(requests[0]?.spec.browser?.search?.inputSelector, "input[type=search]");
   assert.equal(
     requests[0]?.url,
     "https://example.com/search?address=%E6%B7%B1%E5%9C%B3%E5%8D%97%E5%B1%B1%E5%8C%BA%E7%A7%91%E6%8A%80%E5%9B%AD&drink=%E5%86%B0%E7%BE%8E%E5%BC%8F"

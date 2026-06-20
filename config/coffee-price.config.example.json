@@ -110,7 +110,12 @@
         "headless": false,
         "waitUntil": "domcontentloaded",
         "waitForSelector": "[data-offer]",
-        "timeoutMs": 60000
+        "timeoutMs": 60000,
+        "search": {
+          "inputSelector": "input[type=\"search\"]",
+          "submitSelector": "button[type=\"submit\"]",
+          "waitAfterMs": 3000
+        }
       }
     },
     "eleme": {
