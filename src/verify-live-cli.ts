@@ -7,6 +7,7 @@ import {
   defaultAuditPath,
   formatLiveReadinessReport
 } from "./live-readiness.js";
+import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { DoctorReport } from "./doctor.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
 import type { CoffeePriceConfig, SourceConfig } from "./types.js";
@@ -14,6 +15,7 @@ import type { CoffeePriceConfig, SourceConfig } from "./types.js";
 export interface VerifyLiveCliOptions {
   configPath: string;
   auditPaths: Record<keyof SourceConfig, string>;
+  calibrationReportPath: string;
   skipDoctor: boolean;
 }
 
@@ -27,9 +29,11 @@ export interface VerifyLiveCliDeps {
   readConfig?: (path: string) => Promise<CoffeePriceConfig>;
   runDoctor?: () => Promise<DoctorReport>;
   readAudit?: (path: string) => Promise<BrowserSourceSelectorAudit | null>;
+  readCalibrationReport?: (path: string) => Promise<CaptureCalibrationReport | null>;
 }
 
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
+const DEFAULT_CALIBRATION_REPORT_PATH = ".runtime/captures/calibration-report.json";
 const SOURCE_KEYS = ["meituan", "eleme", "brandOfficial"] as const;
 
 export function parseVerifyLiveCliArgs(args: string[]): VerifyLiveCliOptions {
@@ -40,6 +44,7 @@ export function parseVerifyLiveCliArgs(args: string[]): VerifyLiveCliOptions {
       eleme: readOption(args, "--audit-eleme") ?? defaultAuditPath("eleme"),
       brandOfficial: readOption(args, "--audit-brand") ?? defaultAuditPath("brandOfficial")
     },
+    calibrationReportPath: readOption(args, "--calibration-report") ?? DEFAULT_CALIBRATION_REPORT_PATH,
     skipDoctor: args.includes("--skip-doctor")
   };
 }
@@ -52,13 +57,15 @@ export async function runVerifyLiveCli(
   const config = await (deps.readConfig ?? readConfig)(options.configPath);
   const doctor = options.skipDoctor ? undefined : await (deps.runDoctor ?? runDoctor)();
   const readAudit = deps.readAudit ?? readAuditFile;
+  const readCalibrationReport = deps.readCalibrationReport ?? readCalibrationReportFile;
   const audits: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>> = {};
 
   for (const source of SOURCE_KEYS) {
     audits[source] = await readAudit(options.auditPaths[source]);
   }
 
-  const report = buildLiveReadinessReport({ config, doctor, audits });
+  const calibrationReport = await readCalibrationReport(options.calibrationReportPath);
+  const report = buildLiveReadinessReport({ config, doctor, audits, calibrationReport });
   return {
     text: formatLiveReadinessReport(report),
     exitCode: report.status === "fail" ? 1 : 0,
@@ -77,6 +84,14 @@ function readOption(args: string[], name: string): string | undefined {
 async function readAuditFile(path: string): Promise<BrowserSourceSelectorAudit | null> {
   try {
     return JSON.parse(await readFile(path, "utf8")) as BrowserSourceSelectorAudit;
+  } catch {
+    return null;
+  }
+}
+
+async function readCalibrationReportFile(path: string): Promise<CaptureCalibrationReport | null> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as CaptureCalibrationReport;
   } catch {
     return null;
   }

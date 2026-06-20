@@ -6,6 +6,7 @@ import {
   parseVerifyLiveCliArgs,
   runVerifyLiveCli
 } from "../src/verify-live-cli.js";
+import type { CaptureCalibrationReport } from "../src/capture-calibrate.js";
 import type { BrowserSourceSelectorAudit } from "../src/providers/browser-source-provider.js";
 import type { CoffeePriceConfig } from "../src/types.js";
 
@@ -58,25 +59,63 @@ test("parses live verification CLI defaults and audit overrides", () => {
     "config/live.json",
     "--audit-meituan",
     ".runtime/live/meituan.audit.json",
+    "--calibration-report",
+    ".runtime/live/calibration-report.json",
     "--skip-doctor"
   ]);
 
   assert.equal(parsed.configPath, "config/live.json");
   assert.equal(parsed.auditPaths.meituan, ".runtime/live/meituan.audit.json");
   assert.equal(parsed.auditPaths.eleme, ".runtime/captures/eleme.audit.json");
+  assert.equal(parsed.calibrationReportPath, ".runtime/live/calibration-report.json");
   assert.equal(parsed.skipDoctor, true);
+});
+
+test("parses default live calibration report path", () => {
+  const parsed = parseVerifyLiveCliArgs([]);
+
+  assert.equal(parsed.calibrationReportPath, ".runtime/captures/calibration-report.json");
 });
 
 test("live verification CLI returns a passing report from injected healthy dependencies", async () => {
   const result = await runVerifyLiveCli([], {
     readConfig: async () => config,
     runDoctor: async () => ({ status: "pass", checks: [] }),
-    readAudit: async () => audit
+    readAudit: async () => audit,
+    readCalibrationReport: async () => null
   });
 
   assert.equal(result.report.status, "pass");
   assert.equal(result.exitCode, 0);
   assert.match(result.text, /总体: PASS/);
+});
+
+test("live verification CLI includes failed calibration report details", async () => {
+  const calibrationReport: CaptureCalibrationReport = {
+    status: "fail",
+    generatedAt: "2026-06-20T00:00:00.000Z",
+    message: "查公司附近冰美式",
+    results: [
+      {
+        source: "meituan",
+        status: "fail",
+        savedEntryUrl: true,
+        error: "captcha required"
+      }
+    ]
+  };
+
+  const result = await runVerifyLiveCli([], {
+    readConfig: async () => config,
+    runDoctor: async () => ({ status: "pass", checks: [] }),
+    readAudit: async () => audit,
+    readCalibrationReport: async () => calibrationReport
+  });
+
+  assert.equal(result.report.status, "warn");
+  assert.equal(result.exitCode, 0);
+  assert.match(result.text, /批量校准报告/);
+  assert.match(result.text, /meituan: captcha required/);
 });
 
 test("package exposes live verification script", async () => {

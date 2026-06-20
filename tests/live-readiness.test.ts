@@ -5,6 +5,7 @@ import {
   buildLiveReadinessReport,
   formatLiveReadinessReport
 } from "../src/live-readiness.js";
+import type { CaptureCalibrationReport } from "../src/capture-calibrate.js";
 import type { BrowserSourceSelectorAudit } from "../src/providers/browser-source-provider.js";
 import type { CoffeePriceConfig } from "../src/types.js";
 
@@ -110,6 +111,43 @@ test("live readiness suggests batch calibration when multiple source URLs are pl
   assert.match(text, /--url-meituan "<real-meituan-url>"/);
   assert.match(text, /--url-eleme "<real-eleme-url>"/);
   assert.match(text, /--url-brand "<real-brand-url>"/);
+});
+
+test("live readiness includes failed batch calibration report details", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    browserSources: {
+      meituan: {
+        ...baseConfig.browserSources!.meituan!,
+        entryUrl: "https://meituan.example.invalid/search?q={{drink}}"
+      }
+    }
+  };
+  const calibrationReport: CaptureCalibrationReport = {
+    status: "fail",
+    generatedAt: "2026-06-20T00:00:00.000Z",
+    message: "查公司附近冰美式",
+    results: [
+      {
+        source: "meituan",
+        status: "fail",
+        savedEntryUrl: true,
+        error: "captcha required"
+      }
+    ]
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: { meituan: cleanAudit },
+    calibrationReport
+  });
+  const text = formatLiveReadinessReport(report);
+
+  assert.equal(report.status, "warn");
+  assert.match(text, /批量校准报告/);
+  assert.match(text, /meituan: captcha required/);
 });
 
 test("live readiness passes with healthy doctor, real source URL, and clean selector audit", () => {

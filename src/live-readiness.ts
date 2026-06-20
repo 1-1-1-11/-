@@ -1,4 +1,5 @@
 import type { DoctorReport, DoctorStatus } from "./doctor.js";
+import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
 import type { BrowserSourceSpec, CoffeePriceConfig, SourceConfig } from "./types.js";
 
@@ -19,6 +20,7 @@ export interface BuildLiveReadinessReportInput {
   config: CoffeePriceConfig;
   doctor?: DoctorReport;
   audits?: Partial<Record<keyof SourceConfig, BrowserSourceSelectorAudit | null>>;
+  calibrationReport?: CaptureCalibrationReport | null;
 }
 
 const SOURCE_KEYS = ["meituan", "eleme", "brandOfficial"] as const;
@@ -30,6 +32,9 @@ export function buildLiveReadinessReport(
     checkDoctor(input.doctor),
     checkBrowserProfile(input.config)
   ];
+  if (input.calibrationReport) {
+    checks.push(checkCalibrationReport(input.calibrationReport));
+  }
 
   for (const source of SOURCE_KEYS) {
     if (!input.config.sources[source]) {
@@ -93,6 +98,24 @@ function checkBrowserProfile(config: CoffeePriceConfig): LiveReadinessCheck {
     return pass("browser-profile", "浏览器登录态目录", config.browserProfilePath);
   }
   return fail("browser-profile", "浏览器登录态目录", "browserProfilePath 为空");
+}
+
+function checkCalibrationReport(report: CaptureCalibrationReport): LiveReadinessCheck {
+  const detailPrefix = `生成时间: ${report.generatedAt}`;
+  if (report.status === "pass") {
+    return pass("calibration-report", "批量校准报告", "上次批量校准已通过", detailPrefix);
+  }
+
+  const failures = report.results
+    .filter((result) => result.status === "fail")
+    .map((result) => `${result.source}: ${result.error ?? "unknown error"}`)
+    .join("; ");
+  return warn(
+    "calibration-report",
+    "批量校准报告",
+    "上次批量校准有失败项",
+    [detailPrefix, failures].filter(Boolean).join(" - ")
+  );
 }
 
 function checkSourceConfig(

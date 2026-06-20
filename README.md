@@ -189,7 +189,7 @@ npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://e
 npm run verify:live
 ```
 
-`verify:live` 是现场验收前置检查：它会运行 doctor，检查启用渠道是否配置了真实 `browserSources`，并读取 `.runtime/captures/<source>.audit.json` 确认 selector 已经命中候选行且没有缺失必填价格字段。它失败时不会猜测价格，只会列出下一步要补的扫码、配置或 selector 校准动作；如果入口 URL 还是占位，它会直接给出 `npm run capture -- ... --url "<real-platform-url>" --save-url --manual-ms 120000` 这类可执行命令。多个渠道同时是占位 URL 时，报告底部还会追加一条 `npm run capture:calibrate -- ...` 批量校准命令。
+`verify:live` 是现场验收前置检查：它会运行 doctor，检查启用渠道是否配置了真实 `browserSources`，并读取 `.runtime/captures/<source>.audit.json` 确认 selector 已经命中候选行且没有缺失必填价格字段。它还会读取 `.runtime/captures/calibration-report.json` 作为上次批量校准的补充证据；需要指定其它路径时用 `--calibration-report <path>`。它失败时不会猜测价格，只会列出下一步要补的扫码、配置或 selector 校准动作；如果入口 URL 还是占位，它会直接给出 `npm run capture -- ... --url "<real-platform-url>" --save-url --manual-ms 120000` 这类可执行命令。多个渠道同时是占位 URL 时，报告底部还会追加一条 `npm run capture:calibrate -- ...` 批量校准命令。
 
 ## 价格边界
 
