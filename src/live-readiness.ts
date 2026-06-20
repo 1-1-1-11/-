@@ -254,7 +254,7 @@ function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveRe
         id: "weixin-login",
         label: "完成微信扫码登录",
         reason: check.message,
-        command: "npm run weixin:login"
+        command: "npm run weixin:login -- --qr-url-file .runtime/weixin-login/qr-url.txt"
       });
       continue;
     }

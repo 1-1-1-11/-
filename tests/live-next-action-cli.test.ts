@@ -19,7 +19,7 @@ const failingVerifyResult: VerifyLiveCliResult = {
         id: "weixin-login",
         label: "完成微信扫码登录",
         reason: "微信 channel 尚未完成扫码登录",
-        command: "npm run weixin:login"
+        command: "npm run weixin:login -- --qr-url-file .runtime/weixin-login/qr-url.txt"
       },
       {
         id: "batch-calibrate",
@@ -56,7 +56,10 @@ test("next-action CLI prints the first action command only", async () => {
 
   assert.deepEqual(verifyArgs, ["--ignore-calibration-report"]);
   assert.equal(result.exitCode, 0);
-  assert.equal(result.text, "npm run weixin:login\n");
+  assert.equal(
+    result.text,
+    "npm run weixin:login -- --qr-url-file .runtime/weixin-login/qr-url.txt\n"
+  );
 });
 
 test("next-action CLI can emit all actions as JSON", async () => {
