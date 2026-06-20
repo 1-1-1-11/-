@@ -141,6 +141,7 @@ export interface PlatformSnapshotOffer {
   distanceText?: string;
   etaText?: string;
   purchaseUrl?: string;
+  totalPrice?: number;
   unavailableReason?: string;
 }
 

@@ -201,6 +201,30 @@ HTTP 模式会用 `POST` 发送同一个 JSON 请求体，响应可以直接是 
 
 HTTP 源适合接 OrderWise、meituan-cli 这类云手机/App 自动化服务，或者你自己的本地价格聚合 API。请求头可以用 `headers` 写固定值；敏感 token 优先用 `bearerTokenEnv` 或 `bearerTokenFile`，不要写进 Git 仓库。这个桥接层不要求外部源一定是网页抓取；只要输出统一 snapshot，排序和微信回复逻辑就会复用同一套代码。
 
+### 美团 App 自动化源
+
+公开项目 [meituan-cli](https://github.com/oscarka/meituan-cli) 的思路是用 Android 真机/模拟器 + UIAutomator2 控制已登录的美团 App，并暴露本地 HTTP API，而不是抓 H5 或逆向协议。它的 README 中列出的业务端点包括 `/search`、`/open`、`/tap?keyword=外卖`、`/type`、`/add_to_cart`、`/cart`、`/checkout`；`checkout` 停在确认订单页，不会自动付款。
+
+本项目提供 `meituan:app-source` 把这组端点转换成统一 `PlatformSnapshot`：
+
+```powershell
+npm run meituan:app-source
+```
+
+它作为 `externalSources` 命令运行时会从 stdin 读取 `{ query, address }`，对配置的品牌逐个执行 App 自动化报价，最后输出外卖到手价候选。默认连接 `http://127.0.0.1:18080`，默认品牌池为瑞幸、库迪、星巴克、Tims、Manner、M Stand、Peet's。可以用参数或环境变量调整：
+
+```powershell
+npm run meituan:app-source -- --base-url "http://127.0.0.1:18080" --brands "瑞幸,库迪,星巴克"
+```
+
+示例配置已包含一个禁用的 `meituanApp` 外部源。启动 meituan-cli 服务并确认手机已登录美团后，把它改成 `enabled: true`，再运行：
+
+```powershell
+npm run pricebook:refresh -- --query "查公司附近冰美式"
+```
+
+边界：这个路径避免的是网页 H5 登录/验证码问题；它依赖一台已登录且解锁的 Android 设备或云手机。如果美团 App 自身弹出滑块验证、起送价不足、地址未配置或页面结构改变，适配器会返回明确失败原因，不会猜价格，也不会自动付款。
+
 ### 瑞幸官方 MCP 源
 
 瑞幸咖啡 AI 开放平台提供官方 MCP Server。它适合作为第一条真实授权价格源：不抓美团/饿了么 H5，不处理验证码，只走用户 token 授权的官方工具。当前桥接只调用门店查询、商品搜索和订单预览，用于拿自取预估到手价；不会调用 `createOrder`，因此不会自动下单。

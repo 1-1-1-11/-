@@ -199,7 +199,8 @@ function toPriceBookOffer(offer: OfferCandidate, address: AddressConfig): PriceB
     discounts: offer.discounts,
     distanceText: offer.distanceText,
     etaText: offer.etaText,
-    purchaseUrl: offer.purchaseUrl
+    purchaseUrl: offer.purchaseUrl,
+    totalPrice: offer.totalPrice
   };
 }
 

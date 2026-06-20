@@ -88,14 +88,13 @@
       "timeoutMs": 45000
     },
     {
-      "id": "orderwise-http",
-      "label": "云手机外卖比价 HTTP",
+      "id": "meituanApp",
+      "label": "美团 App 自动化",
       "enabled": false,
-      "type": "http",
-      "url": "http://127.0.0.1:18080/coffee-price/search",
-      "method": "POST",
-      "timeoutMs": 120000,
-      "bearerTokenEnv": "COFFEE_PRICE_HTTP_TOKEN"
+      "type": "command",
+      "command": "node",
+      "args": ["--import", "tsx", "src/meituan-app-source-cli.ts", "--base-url", "http://127.0.0.1:18080"],
+      "timeoutMs": 180000
     }
   ],
   "browserSources": {

@@ -35,7 +35,8 @@ export function parsePlatformSnapshot(snapshot: PlatformSnapshot): OfferCandidat
       discounts: offer.discounts ?? [],
       distanceText: offer.distanceText,
       etaText: offer.etaText,
-      purchaseUrl: offer.purchaseUrl
+      purchaseUrl: offer.purchaseUrl,
+      totalPrice: offer.totalPrice
     }));
 }
 
