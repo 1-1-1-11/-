@@ -10,6 +10,8 @@ export interface OrderWiseConfigureOptions {
   mapping: Record<string, string>;
   phoneAgentBaseUrl?: string;
   phoneAgentModel?: string;
+  orderwiseModelUrl?: string;
+  orderwiseModelName?: string;
   phoneAgentApiKey?: string;
   phoneAgentApiKeyEnv?: string;
   phoneAgentMaxSteps?: number;
@@ -94,6 +96,16 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
         break;
       case "--phone-agent-model":
         options.phoneAgentModel = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--orderwise-model-url":
+      case "--model-url":
+        options.orderwiseModelUrl = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--orderwise-model-name":
+      case "--model-name":
+        options.orderwiseModelName = requireValue(arg, next);
         index += 1;
         break;
       case "--phone-agent-api-key":
@@ -194,6 +206,12 @@ export async function loadOrderWiseEnvFile(
   }
   const parsed = parseEnvFile(content);
   const merged: NodeJS.ProcessEnv = { ...env, ...parsed };
+  if (merged.ORDERWISE_MODEL_URL && !merged.PHONE_AGENT_BASE_URL) {
+    merged.PHONE_AGENT_BASE_URL = merged.ORDERWISE_MODEL_URL;
+  }
+  if (merged.ORDERWISE_MODEL_NAME && !merged.PHONE_AGENT_MODEL) {
+    merged.PHONE_AGENT_MODEL = merged.ORDERWISE_MODEL_NAME;
+  }
   const apiKeyEnv = merged.PHONE_AGENT_API_KEY_ENV;
   if (apiKeyEnv && env[apiKeyEnv] && !merged.PHONE_AGENT_API_KEY) {
     merged.PHONE_AGENT_API_KEY = env[apiKeyEnv];
@@ -220,6 +238,9 @@ function formatResult(
     lines.push("提示: API key 已写入本机 .env.local；该路径位于 .runtime 下，不会提交到 Git。");
   } else if (options.phoneAgentApiKeyEnv) {
     lines.push(`提示: serve 会从环境变量 ${options.phoneAgentApiKeyEnv} 读取 PHONE_AGENT_API_KEY。`);
+  }
+  if (options.orderwiseModelUrl || options.orderwiseModelName) {
+    lines.push("提示: ORDERWISE_MODEL_URL/NAME 会自动映射为 OrderWise MCP backend 实际读取的 PHONE_AGENT_BASE_URL/MODEL。");
   }
   lines.push("下一步: 重启 npm run orderwise:serve，然后运行 npm run orderwise:doctor。");
   return lines.join("\n");
@@ -250,6 +271,18 @@ async function buildEnvEntries(
   if (options.phoneAgentModel) {
     entries.PHONE_AGENT_MODEL = options.phoneAgentModel;
   }
+  if (options.orderwiseModelUrl) {
+    entries.ORDERWISE_MODEL_URL = options.orderwiseModelUrl;
+    if (!options.phoneAgentBaseUrl) {
+      entries.PHONE_AGENT_BASE_URL = options.orderwiseModelUrl;
+    }
+  }
+  if (options.orderwiseModelName) {
+    entries.ORDERWISE_MODEL_NAME = options.orderwiseModelName;
+    if (!options.phoneAgentModel) {
+      entries.PHONE_AGENT_MODEL = options.orderwiseModelName;
+    }
+  }
   if (options.phoneAgentApiKey) {
     entries.PHONE_AGENT_API_KEY = options.phoneAgentApiKey;
     delete entries.PHONE_AGENT_API_KEY_ENV;
@@ -270,7 +303,9 @@ function formatEnvFile(entries: Record<string, string>): string {
     "PHONE_AGENT_MODEL",
     "PHONE_AGENT_API_KEY",
     "PHONE_AGENT_API_KEY_ENV",
-    "PHONE_AGENT_MAX_STEPS"
+    "PHONE_AGENT_MAX_STEPS",
+    "ORDERWISE_MODEL_URL",
+    "ORDERWISE_MODEL_NAME"
   ];
   const keys = [
     ...knownKeys,

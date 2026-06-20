@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import {
   buildLuckinMcpSnapshot,
   parseLuckinMcpSourceArgs,
+  resolveLuckinToken,
   runLuckinMcpSourceCli
 } from "../src/luckin-mcp-source.js";
 import type { AddressConfig, CoffeeQuery } from "../src/types.js";
@@ -39,6 +40,31 @@ test("parses Luckin MCP source CLI options and env defaults", () => {
   assert.equal(parsed.longitude, 1.2);
   assert.equal(parsed.latitude, 3.4);
   assert.equal(parsed.maxShops, 2);
+});
+
+test("parses aivo-compatible Luckin token env alias", () => {
+  const parsed = parseLuckinMcpSourceArgs([], { LUCKIN_MCP_ORDER_TOKEN: "order-token" });
+
+  assert.equal(parsed.token, "order-token");
+  assert.equal(parsed.tokenEnvName, "LUCKIN_MCP_ORDER_TOKEN");
+});
+
+test("resolves official Luckin CLI env token file", async () => {
+  const parsed = parseLuckinMcpSourceArgs([], {
+    LUCKIN_MCP_TOKEN_FILE: "missing-token",
+    LUCKIN_OFFICIAL_ENV_FILE: "official.env"
+  });
+  const resolved = await resolveLuckinToken(parsed, {
+    readFile: async (path) => {
+      if (path === "official.env") {
+        return "LUCKIN_MCP_ORDER_TOKEN=\"Bearer official-token-1234567890\"\n";
+      }
+      throw new Error("missing");
+    }
+  });
+
+  assert.equal(resolved?.token, "official-token-1234567890");
+  assert.equal(resolved?.source, "official.env");
 });
 
 test("returns login_required when no Luckin token is available", async () => {

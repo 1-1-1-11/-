@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { readConfig } from "./config.js";
-import { parseLuckinMcpSourceArgs } from "./luckin-mcp-source.js";
+import { parseLuckinMcpSourceArgs, resolveLuckinToken } from "./luckin-mcp-source.js";
 import type { CoffeePriceConfig, ExternalSourceConfig } from "./types.js";
 
 export type LuckinDoctorStatus = "pass" | "warn" | "fail";
@@ -102,8 +102,13 @@ export function formatLuckinDoctorReport(report: LuckinDoctorReport): string {
 
 async function checkToken(env: NodeJS.ProcessEnv, deps: LuckinDoctorDeps): Promise<LuckinDoctorCheck> {
   const sourceOptions = parseLuckinMcpSourceArgs([], env);
+  const resolvedToken = await resolveLuckinToken(sourceOptions, deps);
+  if (resolvedToken) {
+    return pass("token", "瑞幸 token", `已从 ${resolvedToken.source} 读取 token`);
+  }
   if (sourceOptions.token?.trim()) {
-    return pass("token", "瑞幸 token", "已从 LUCKIN_MCP_TOKEN 读取 token");
+    const envName = env.LUCKIN_MCP_TOKEN?.trim() ? "LUCKIN_MCP_TOKEN" : "LUCKIN_MCP_ORDER_TOKEN";
+    return pass("token", "瑞幸 token", `已从 ${envName} 读取 token`);
   }
   if (!sourceOptions.tokenPath) {
     return fail("token", "瑞幸 token", "未设置 LUCKIN_MCP_TOKEN，也未设置 token 文件路径");
@@ -121,8 +126,8 @@ async function checkToken(env: NodeJS.ProcessEnv, deps: LuckinDoctorDeps): Promi
     id: "token",
     label: "瑞幸 token",
     status: "fail",
-    message: `未检测到 token；请设置 LUCKIN_MCP_TOKEN，或写入 ${sourceOptions.tokenPath}`,
-    detail: "token 只应保存在本机环境变量或用户目录文件，不要写入 Git 仓库"
+    message: `未检测到 token；请设置 LUCKIN_MCP_TOKEN / LUCKIN_MCP_ORDER_TOKEN，或写入 ${sourceOptions.tokenPath}`,
+    detail: "LUCKIN_MCP_ORDER_TOKEN 兼容 aivo-luckin 等公开瑞幸 MCP 工具；token 只应保存在本机环境变量或用户目录文件，不要写入 Git 仓库"
   };
 }
 

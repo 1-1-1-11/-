@@ -6,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 import { roundCurrency } from "./pricing.js";
+import { extractLuckinToken } from "./luckin-token-import.js";
 import type {
   AddressConfig,
   CoffeeQuery,
@@ -21,10 +22,17 @@ interface ExternalPriceSourceRequest {
 export interface LuckinMcpSourceOptions {
   endpoint: string;
   token?: string;
+  tokenEnvName?: string;
   tokenPath?: string;
+  officialTokenEnvPath?: string;
   longitude?: number;
   latitude?: number;
   maxShops: number;
+}
+
+export interface ResolvedLuckinToken {
+  token: string;
+  source: string;
 }
 
 export interface LuckinMcpSourceDeps {
@@ -65,15 +73,23 @@ interface LuckinPreview {
 
 const DEFAULT_ENDPOINT = "https://gwmcp.lkcoffee.com/order/user/mcp";
 const DEFAULT_TOKEN_PATH = join(homedir(), ".my-coffee", "LUCKIN_MCP_TOKEN");
+const DEFAULT_OFFICIAL_TOKEN_ENV_PATH = join(homedir(), ".luckin", ".env");
 
 export function parseLuckinMcpSourceArgs(
   args: string[],
   env: NodeJS.ProcessEnv = process.env
 ): LuckinMcpSourceOptions {
+  const tokenEnvName = env.LUCKIN_MCP_TOKEN?.trim()
+    ? "LUCKIN_MCP_TOKEN"
+    : env.LUCKIN_MCP_ORDER_TOKEN?.trim()
+      ? "LUCKIN_MCP_ORDER_TOKEN"
+      : undefined;
   const options: LuckinMcpSourceOptions = {
     endpoint: env.LUCKIN_MCP_URL ?? DEFAULT_ENDPOINT,
-    token: env.LUCKIN_MCP_TOKEN,
+    token: tokenEnvName ? env[tokenEnvName] : undefined,
+    tokenEnvName,
     tokenPath: env.LUCKIN_MCP_TOKEN_FILE ?? DEFAULT_TOKEN_PATH,
+    officialTokenEnvPath: env.LUCKIN_OFFICIAL_ENV_FILE ?? DEFAULT_OFFICIAL_TOKEN_ENV_PATH,
     longitude: parseOptionalNumber(env.LUCKIN_LONGITUDE),
     latitude: parseOptionalNumber(env.LUCKIN_LATITUDE),
     maxShops: parseOptionalInteger(env.LUCKIN_MAX_SHOPS) ?? 5
@@ -89,10 +105,15 @@ export function parseLuckinMcpSourceArgs(
         break;
       case "--token":
         options.token = requireValue(arg, next);
+        options.tokenEnvName = undefined;
         index += 1;
         break;
       case "--token-file":
         options.tokenPath = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--official-env-file":
+        options.officialTokenEnvPath = requireValue(arg, next);
         index += 1;
         break;
       case "--longitude":
@@ -133,7 +154,8 @@ export async function buildLuckinMcpSnapshot(
   options: LuckinMcpSourceOptions,
   deps: LuckinMcpSourceDeps = {}
 ): Promise<PlatformSnapshot> {
-  const token = await resolveToken(options, deps);
+  const resolvedToken = await resolveLuckinToken(options, deps);
+  const token = resolvedToken?.token;
   if (!token) {
     return statusSnapshot("login_required", "缺少 LUCKIN_MCP_TOKEN；请在瑞幸 AI 开放平台生成 token 后设置环境变量或 ~/.my-coffee/LUCKIN_MCP_TOKEN");
   }
@@ -297,21 +319,85 @@ async function createLuckinMcpClient(endpoint: string, token: string): Promise<C
   return client;
 }
 
-async function resolveToken(
+export async function resolveLuckinToken(
   options: LuckinMcpSourceOptions,
   deps: LuckinMcpSourceDeps
-): Promise<string | null> {
-  if (options.token?.trim()) {
-    return options.token.trim();
+): Promise<ResolvedLuckinToken | null> {
+  const directToken = normalizeLuckinToken(options.token);
+  if (directToken) {
+    return {
+      token: directToken,
+      source: options.tokenEnvName ?? "command line token"
+    };
   }
+  const reader = deps.readFile ?? readFile;
   if (!options.tokenPath) {
+    return readOfficialLuckinToken(options.officialTokenEnvPath, reader);
+  }
+  try {
+    const fileToken = normalizeLuckinToken(await reader(options.tokenPath, "utf8"));
+    if (fileToken) {
+      return {
+        token: fileToken,
+        source: options.tokenPath
+      };
+    }
+  } catch {
+    // Fall through to the official Luckin CLI env file.
+  }
+  return readOfficialLuckinToken(options.officialTokenEnvPath, reader);
+}
+
+async function readOfficialLuckinToken(
+  path: string | undefined,
+  reader: (path: string, encoding: BufferEncoding) => Promise<string>
+): Promise<ResolvedLuckinToken | null> {
+  if (!path) {
     return null;
   }
   try {
-    return (await (deps.readFile ?? readFile)(options.tokenPath, "utf8")).trim() || null;
+    const parsed = parseDotEnv(await reader(path, "utf8"));
+    const token =
+      normalizeLuckinToken(parsed.LUCKIN_MCP_ORDER_TOKEN) ??
+      normalizeLuckinToken(parsed.LUCKIN_MCP_TOKEN);
+    return token ? { token, source: path } : null;
   } catch {
     return null;
   }
+}
+
+function parseDotEnv(content: string): Record<string, string> {
+  const entries: Record<string, string> = {};
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) {
+      continue;
+    }
+    entries[match[1]] = unquoteEnvValue(match[2]);
+  }
+  return entries;
+}
+
+function unquoteEnvValue(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function normalizeLuckinToken(value: string | undefined): string | null {
+  if (!value?.trim()) {
+    return null;
+  }
+  return extractLuckinToken(value) ?? value.trim().replace(/^Bearer\s+/i, "");
 }
 
 function extractArray<T>(value: unknown, keys: string[]): T[] {

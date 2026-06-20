@@ -405,15 +405,15 @@ function buildExternalSourceActions(config: CoffeePriceConfig): LiveReadinessAct
       id: "configure-external-source:orderwiseMcp",
       label: "配置 OrderWise 多平台 MCP 实时源",
       reason: "已有 OrderWise MCP 源配置，但仍未启用；需要填入云手机设备映射和 Phone Agent 模型配置",
-      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --meituan \"<meituan-cloud-phone-ip:port>\" --jd \"<jd-cloud-phone-ip:port>\" --taobao \"<taobao-cloud-phone-ip:port>\" --phone-agent-base-url \"<phone-agent-base-url>\" --phone-agent-model \"<phone-agent-model>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --meituan \"<meituan-cloud-phone-ip:port>\" --jd \"<jd-cloud-phone-ip:port>\" --taobao \"<taobao-cloud-phone-ip:port>\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
     });
   }
   if (externalSources.some((source) => source.id === "luckinMcp")) {
     actions.push({
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 MCP 自取实时源",
-      reason: "已有瑞幸官方 MCP 源配置，但仍未启用；需要导入瑞幸开放平台 token",
-      command: "npm run --silent luckin:setup -- --token \"Authorization: Bearer <luckin-mcp-token>\""
+      reason: "已有瑞幸官方 MCP 源配置，但仍未启用；需要登录瑞幸开放平台或导入 token",
+      command: "npm run luckin:login -- --open-browser --enable"
     });
   }
   if (externalSources.some((source) => source.id === "meituanApp")) {

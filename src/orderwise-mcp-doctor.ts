@@ -173,7 +173,7 @@ function checkModelEnv(env: NodeJS.ProcessEnv): OrderWiseDoctorCheck {
     "model",
     "Phone Agent 模型",
     "未设置 PHONE_AGENT_BASE_URL 和 PHONE_AGENT_MODEL，将使用 OrderWise 默认 localhost:4244/v1",
-    "如果本机没有 AutoGLM/Phone Agent 模型服务，真实比价会失败"
+    "也可以在 .env.local 里设置 ORDERWISE_MODEL_URL/ORDERWISE_MODEL_NAME；本项目会映射到 OrderWise MCP backend 实际读取的 PHONE_AGENT_*。如果本机没有 AutoGLM/Phone Agent 模型服务，真实比价会失败"
   );
 }
 

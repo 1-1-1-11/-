@@ -26,6 +26,7 @@
     "orderwise:configure": "tsx src/orderwise-configure-cli.ts",
     "mcp:setup": "tsx src/generic-mcp-setup-cli.ts",
     "luckin:doctor": "tsx src/luckin-mcp-doctor-cli.ts",
+    "luckin:login": "tsx src/luckin-login-cli.ts",
     "luckin:enable": "tsx src/luckin-mcp-enable-cli.ts",
     "luckin:import-token": "tsx src/luckin-token-import-cli.ts",
     "luckin:setup": "tsx src/luckin-setup-cli.ts",

@@ -378,6 +378,53 @@ test("configures OrderWise mapping, local env, and enabled source", async () => 
   assert.equal(nextConfig.externalSources[0].enabled, true);
 });
 
+test("OrderWise configure accepts official self-hosted model env names", async () => {
+  const parsed = parseOrderWiseConfigureArgs([
+    "--meituan",
+    "10.0.0.1:5555",
+    "--orderwise-model-url",
+    "http://model.local/v1",
+    "--orderwise-model-name",
+    "autoglm-phone-9b",
+    "--phone-agent-api-key-env",
+    "PHONE_KEY"
+  ]);
+
+  assert.equal(parsed.orderwiseModelUrl, "http://model.local/v1");
+  assert.equal(parsed.orderwiseModelName, "autoglm-phone-9b");
+
+  const writes = new Map<string, string>();
+  await configureOrderWise(
+    {
+      ...parsed,
+      mappingPath: "mapping.json",
+      envPath: "orderwise.env",
+      configPath: "config.json"
+    },
+    {
+      readFile: async (path) => {
+        if (path === "mapping.json") {
+          return "{}";
+        }
+        if (path === "orderwise.env") {
+          return "";
+        }
+        return JSON.stringify({ externalSources: [] });
+      },
+      writeFile: async (path, content) => {
+        writes.set(path, content);
+      },
+      mkdir: async () => undefined
+    }
+  );
+
+  const envFile = writes.get("orderwise.env") ?? "";
+  assert.match(envFile, /PHONE_AGENT_BASE_URL="http:\/\/model\.local\/v1"/);
+  assert.match(envFile, /PHONE_AGENT_MODEL="autoglm-phone-9b"/);
+  assert.match(envFile, /ORDERWISE_MODEL_URL="http:\/\/model\.local\/v1"/);
+  assert.match(envFile, /ORDERWISE_MODEL_NAME="autoglm-phone-9b"/);
+});
+
 test("OrderWise configure dry-run is a no-op without new values", async () => {
   const result = await configureOrderWise(
     {
@@ -434,6 +481,37 @@ test("OrderWise local env file is loaded by doctor helpers", async () => {
           "PHONE_AGENT_BASE_URL=\"http://model.local/v1\"",
           "PHONE_AGENT_MODEL=\"autoglm-phone-9b\"",
           "PHONE_AGENT_API_KEY_ENV=\"PHONE_KEY\""
+        ].join("\n");
+      }
+      return JSON.stringify({ app1: "10.0.0.1:5555" });
+    }
+  });
+
+  assert.equal(result.report.checks.find((check) => check.id === "model")?.status, "pass");
+});
+
+test("OrderWise local env maps official model names to backend env", async () => {
+  const env = await loadOrderWiseEnvFile(
+    "orderwise.env",
+    {},
+    async () => [
+      "ORDERWISE_MODEL_URL=\"http://model.local/v1\"",
+      "ORDERWISE_MODEL_NAME=\"autoglm-phone-9b\""
+    ].join("\n")
+  );
+
+  assert.equal(env.ORDERWISE_MODEL_URL, "http://model.local/v1");
+  assert.equal(env.ORDERWISE_MODEL_NAME, "autoglm-phone-9b");
+  assert.equal(env.PHONE_AGENT_BASE_URL, "http://model.local/v1");
+  assert.equal(env.PHONE_AGENT_MODEL, "autoglm-phone-9b");
+
+  const result = await runOrderWiseDoctorCli(["--env-file", "orderwise.env"], {
+    listTools: async () => ["compare_prices"],
+    readFile: async (path) => {
+      if (path === "orderwise.env") {
+        return [
+          "ORDERWISE_MODEL_URL=\"http://model.local/v1\"",
+          "ORDERWISE_MODEL_NAME=\"autoglm-phone-9b\""
         ].join("\n");
       }
       return JSON.stringify({ app1: "10.0.0.1:5555" });
