@@ -62,7 +62,18 @@ test("resolves relative runtime paths from the config root", async () => {
     JSON.stringify({
       addresses: [],
       browserProfilePath: ".runtime/browser-profile",
-      priceBookPath: "config/pricebook.json"
+      priceBookPath: "config/pricebook.json",
+      priceBookRefresh: {
+        outputPath: "config/pricebook.json",
+        queries: [{ message: "\u67e5\u516c\u53f8\u9644\u8fd1\u51b0\u7f8e\u5f0f" }]
+      },
+      externalSources: [
+        {
+          id: "feed",
+          command: "node",
+          args: ["scripts/feed.mjs"]
+        }
+      ]
     }),
     "utf8"
   );
@@ -71,6 +82,8 @@ test("resolves relative runtime paths from the config root", async () => {
 
   assert.equal(config.browserProfilePath, join(dir, ".runtime", "browser-profile"));
   assert.equal(config.priceBookPath, join(dir, "config", "pricebook.json"));
+  assert.equal(config.priceBookRefresh?.outputPath, join(dir, "config", "pricebook.json"));
+  assert.equal(config.externalSources?.[0]?.cwd, dir);
 });
 
 test("reads UTF-8 config files with a Windows PowerShell BOM", async () => {

@@ -40,12 +40,24 @@ export interface ExternalSourceConfig {
   timeoutMs?: number;
 }
 
+export interface PriceBookRefreshQueryConfig {
+  message: string;
+  addressAlias?: string;
+}
+
+export interface PriceBookRefreshConfig {
+  outputPath?: string;
+  mergeExisting?: boolean;
+  queries?: PriceBookRefreshQueryConfig[];
+}
+
 export interface CoffeePriceConfig {
   defaultAddressAlias: string;
   addresses: AddressConfig[];
   browserProfilePath: string;
   openLowestPurchasePage?: boolean;
   priceBookPath?: string;
+  priceBookRefresh?: PriceBookRefreshConfig;
   brands: BrandConfig[];
   sources: SourceConfig;
   browserSources?: BrowserSourcesConfig;

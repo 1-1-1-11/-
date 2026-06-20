@@ -15,6 +15,18 @@
   "browserProfilePath": ".runtime/browser-profile",
   "openLowestPurchasePage": true,
   "priceBookPath": "config/pricebook.json",
+  "priceBookRefresh": {
+    "outputPath": "config/pricebook.json",
+    "mergeExisting": true,
+    "queries": [
+      {
+        "message": "查公司附近冰美式"
+      },
+      {
+        "message": "查公司附近拿铁 大杯"
+      }
+    ]
+  },
   "brands": [
     {
       "name": "瑞幸",

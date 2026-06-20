@@ -26,7 +26,19 @@ function resolveRuntimePaths(config: CoffeePriceConfig, configPath: string): Cof
   return {
     ...config,
     browserProfilePath: resolvePathFromRoot(root, config.browserProfilePath),
-    priceBookPath: config.priceBookPath ? resolvePathFromRoot(root, config.priceBookPath) : config.priceBookPath
+    priceBookPath: config.priceBookPath ? resolvePathFromRoot(root, config.priceBookPath) : config.priceBookPath,
+    priceBookRefresh: config.priceBookRefresh
+      ? {
+          ...config.priceBookRefresh,
+          outputPath: config.priceBookRefresh.outputPath
+            ? resolvePathFromRoot(root, config.priceBookRefresh.outputPath)
+            : config.priceBookPath
+        }
+      : config.priceBookRefresh,
+    externalSources: config.externalSources?.map((source) => ({
+      ...source,
+      cwd: source.cwd ? resolvePathFromRoot(root, source.cwd) : root
+    }))
   };
 }
 
@@ -46,6 +58,13 @@ export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceCon
     browserProfilePath: raw.browserProfilePath ?? ".runtime/browser-profile",
     openLowestPurchasePage: raw.openLowestPurchasePage ?? false,
     priceBookPath: raw.priceBookPath ?? "config/pricebook.json",
+    priceBookRefresh: raw.priceBookRefresh
+      ? {
+          outputPath: raw.priceBookRefresh.outputPath ?? raw.priceBookPath ?? "config/pricebook.json",
+          mergeExisting: raw.priceBookRefresh.mergeExisting ?? true,
+          queries: raw.priceBookRefresh.queries ?? []
+        }
+      : undefined,
     brands: normalizeBrands(raw.brands),
     sources: { ...DEFAULT_SOURCES, ...(raw.sources ?? {}) },
     browserSources: raw.browserSources ?? {},

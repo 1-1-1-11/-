@@ -178,6 +178,20 @@ openclaw gateway restart
 
 这个桥接层也可以包装 `mcporter call ...`、内部 HTTP API、定时采集器输出等。它不要求外部源一定是网页抓取；只要输出统一 snapshot，排序和微信回复逻辑就会复用同一套代码。
 
+接入 MCP/授权接口后，推荐用刷新命令把外部源结果写入本地价格库：
+
+```powershell
+npm run pricebook:refresh
+```
+
+默认会读取 `priceBookRefresh.queries`，逐条调用已启用的 `externalSources`，再原子写入 `priceBookRefresh.outputPath` 或 `priceBookPath`。如果只想临时刷新一个查询：
+
+```powershell
+npm run pricebook:refresh -- --query "查公司附近冰美式"
+```
+
+刷新命令只调用外部命令/MCP 源，不会打开美团/饿了么 H5，也不会处理或绕过验证码。外部源没有返回可比价格时，命令会失败并保留现有 `pricebook.json` 不变；成功时会替换同地址、同饮品、同规格的旧条目，并保留其它饮品/地址的旧条目。
+
 ## 浏览器提取器
 
 `browserSources` 是可选增强源，可以为每个网页渠道配置一个入口 URL 和 CSS 选择器。工具会使用 `browserProfilePath` 指向的独立浏览器 profile 打开页面，然后提取字段：

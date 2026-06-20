@@ -16,6 +16,7 @@
     "config:scaffold": "tsx src/config-scaffold.ts",
     "config:set-url": "tsx src/config-set-url.ts",
     "doctor": "tsx src/doctor-cli.ts",
+    "pricebook:refresh": "tsx src/pricebook-refresh-cli.ts",
     "verify:next": "tsx src/live-next-action.ts",
     "verify:live": "tsx src/verify-live.ts",
     "weixin:login": "node --import ./scripts/openclaw-network-preload.mjs --import tsx src/weixin-login-cli.ts"
