@@ -181,7 +181,7 @@ openclaw gateway restart
 }
 ```
 
-MCP 直连模式会连接 Streamable HTTP MCP endpoint，调用指定 tool，并把 tool 返回结果解析成统一 `PlatformSnapshot`。`toolArguments` 支持 `{{query.rawText}}`、`{{query.drink}}`、`{{query.normalizedDrink}}`、`{{query.size}}`、`{{query.quantity}}`、`{{address.alias}}`、`{{address.label}}`、`{{address.query}}` 等模板；单独一个模板值会保留原始类型，例如 `quantity` 会保持 number。
+MCP 直连模式支持 Streamable HTTP endpoint 和本地 stdio MCP 子进程，调用指定 tool，并把 tool 返回结果解析成统一 `PlatformSnapshot`。`toolArguments` 支持 `{{query.rawText}}`、`{{query.drink}}`、`{{query.normalizedDrink}}`、`{{query.size}}`、`{{query.quantity}}`、`{{address.alias}}`、`{{address.label}}`、`{{address.query}}` 等模板；单独一个模板值会保留原始类型，例如 `quantity` 会保持 number。
 
 ```json
 {
@@ -191,6 +191,7 @@ MCP 直连模式会连接 Streamable HTTP MCP endpoint，调用指定 tool，并
       "label": "通用 MCP 直连查价源",
       "enabled": true,
       "type": "mcp",
+      "transport": "http",
       "endpoint": "http://127.0.0.1:8787/mcp",
       "toolName": "coffee_price_search",
       "toolArguments": {
@@ -221,6 +222,36 @@ npm run mcp:setup -- --endpoint "http://127.0.0.1:8787/mcp" --tool "coffee_price
 ```powershell
 $env:COFFEE_PRICE_MCP_TOKEN = "你的 token"
 npm run mcp:setup -- --endpoint "https://example.com/mcp" --tool "coffee_price_search" --bearer-token-env COFFEE_PRICE_MCP_TOKEN
+```
+
+如果对方提供的是本地 stdio MCP（常见形态是 `npx -y github:owner/project`），可以直接让外部源启动 MCP 子进程。`bearerTokenEnv` 表示从当前 Windows PowerShell 5.1 环境读取哪个变量，`tokenEnvName` 表示传给子 MCP 进程时使用哪个变量名：
+
+```powershell
+$env:COFFEE_PRICE_MCP_TOKEN = "你的 token"
+npm run mcp:setup -- --transport stdio --command npx --args-json '["-y","github:owner/coffee-mcp"]' --tool "coffee_price_search" --bearer-token-env COFFEE_PRICE_MCP_TOKEN --token-env-name COFFEE_PRICE_MCP_TOKEN
+```
+
+对应配置如下：
+
+```json
+{
+  "externalSources": [
+    {
+      "id": "stdioGenericMcp",
+      "label": "本地 stdio MCP 查价源",
+      "enabled": true,
+      "type": "mcp",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:owner/coffee-mcp"],
+      "bearerTokenEnv": "COFFEE_PRICE_MCP_TOKEN",
+      "tokenEnvName": "COFFEE_PRICE_MCP_TOKEN",
+      "toolName": "coffee_price_search",
+      "toolResultPath": "snapshot",
+      "timeoutMs": 120000
+    }
+  ]
+}
 ```
 
 只想确认 endpoint 和 tool 名称、不试调返回结构时，可以传 `--skip-probe-call`。这会写入配置但带 `WARN`，后续真实查询如果 tool 不返回统一 snapshot 仍会失败。

@@ -49,6 +49,7 @@ test("parses generic MCP setup CLI options and env defaults", () => {
   assert.equal(parsed.configPath, "config.json");
   assert.equal(parsed.id, "coffeeLive");
   assert.equal(parsed.label, "实时咖啡 MCP");
+  assert.equal(parsed.transport, "http");
   assert.equal(parsed.endpoint, "http://127.0.0.1:8787/mcp");
   assert.equal(parsed.toolName, "coffee_price_search");
   assert.equal(parsed.toolResultPath, "data.snapshot");
@@ -60,6 +61,30 @@ test("parses generic MCP setup CLI options and env defaults", () => {
   assert.equal(parsed.dryRun, true);
 });
 
+test("parses stdio MCP setup CLI options", () => {
+  const parsed = parseGenericMcpSetupArgs([
+    "--transport", "stdio",
+    "--command", "npx",
+    "--args-json", "[\"-y\",\"github:owner/coffee-mcp\"]",
+    "--env-json", "{\"STATIC_FLAG\":\"1\"}",
+    "--env-from-json", "{\"CHILD_TOKEN\":\"PARENT_TOKEN\"}",
+    "--tool", "coffee_price_search",
+    "--token-env-name", "COFFEE_MCP_TOKEN",
+    "--bearer-token-env", "PARENT_TOKEN",
+    "--skip-probe-call"
+  ]);
+
+  assert.equal(parsed.transport, "stdio");
+  assert.equal(parsed.command, "npx");
+  assert.deepEqual(parsed.args, ["-y", "github:owner/coffee-mcp"]);
+  assert.deepEqual(parsed.env, { STATIC_FLAG: "1" });
+  assert.deepEqual(parsed.envFrom, { CHILD_TOKEN: "PARENT_TOKEN" });
+  assert.equal(parsed.toolName, "coffee_price_search");
+  assert.equal(parsed.tokenEnvName, "COFFEE_MCP_TOKEN");
+  assert.equal(parsed.bearerTokenEnv, "PARENT_TOKEN");
+  assert.equal(parsed.probeCall, false);
+});
+
 test("sets up a generic MCP source after finding the configured tool", async () => {
   let written = "";
   const result = await setupGenericMcpSource(
@@ -67,6 +92,7 @@ test("sets up a generic MCP source after finding the configured tool", async () 
       configPath: "config.json",
       id: "genericMcp",
       label: "通用 MCP 直连查价源",
+      transport: "http",
       endpoint: "http://127.0.0.1:8787/mcp",
       toolName: "coffee_price_search",
       toolResultPath: "snapshot",
@@ -94,6 +120,53 @@ test("sets up a generic MCP source after finding the configured tool", async () 
   assert.equal(next.externalSources[0].toolName, "coffee_price_search");
 });
 
+test("sets up a stdio MCP source after finding the configured tool", async () => {
+  let written = "";
+  const result = await setupGenericMcpSource(
+    {
+      configPath: "config.json",
+      id: "stdioMcp",
+      label: "本地 stdio MCP",
+      transport: "stdio",
+      endpoint: "",
+      command: "npx",
+      args: ["-y", "github:owner/coffee-mcp"],
+      env: { STATIC_FLAG: "1" },
+      envFrom: { CHILD_TOKEN: "PARENT_TOKEN" },
+      bearerTokenEnv: "PARENT_TOKEN",
+      tokenEnvName: "COFFEE_MCP_TOKEN",
+      toolName: "coffee_price_search",
+      toolResultPath: "snapshot",
+      timeoutMs: 120_000,
+      dryRun: false,
+      probeCall: false,
+      sampleMessage: "查公司附近冰美式",
+      json: false
+    },
+    {
+      readFile: async () => JSON.stringify(CONFIG),
+      writeFile: async (_path, content) => {
+        written = content;
+      },
+      listTools: async () => ["coffee_price_search"]
+    }
+  );
+
+  assert.equal(result.status, "warn");
+  assert.equal(result.changed, true);
+  const next = JSON.parse(written) as { externalSources: Array<Record<string, unknown>> };
+  const source = next.externalSources.find((entry) => entry.id === "stdioMcp");
+  assert.ok(source);
+  assert.equal(source.transport, "stdio");
+  assert.equal(source.command, "npx");
+  assert.deepEqual(source.args, ["-y", "github:owner/coffee-mcp"]);
+  assert.deepEqual(source.env, { STATIC_FLAG: "1" });
+  assert.deepEqual(source.envFrom, { CHILD_TOKEN: "PARENT_TOKEN" });
+  assert.equal(source.tokenEnvName, "COFFEE_MCP_TOKEN");
+  assert.equal(source.endpoint, undefined);
+  assert.match(formatGenericMcpSetupResult(result), /stdioMcp -> npx -y github:owner\/coffee-mcp/);
+});
+
 test("does not write config when the MCP tool is missing", async () => {
   let wrote = false;
   const result = await setupGenericMcpSource(
@@ -101,6 +174,7 @@ test("does not write config when the MCP tool is missing", async () => {
       configPath: "config.json",
       id: "genericMcp",
       label: "通用 MCP 直连查价源",
+      transport: "http",
       endpoint: "http://127.0.0.1:8787/mcp",
       toolName: "coffee_price_search",
       timeoutMs: 120_000,
@@ -129,6 +203,7 @@ test("probe-call verifies that the MCP source returns comparable offers", async 
       configPath: "config.json",
       id: "genericMcp",
       label: "通用 MCP 直连查价源",
+      transport: "http",
       endpoint: "http://127.0.0.1:8787/mcp",
       toolName: "coffee_price_search",
       timeoutMs: 120_000,

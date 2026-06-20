@@ -83,7 +83,30 @@
       "label": "通用 MCP 直连查价源",
       "enabled": false,
       "type": "mcp",
+      "transport": "http",
       "endpoint": "http://127.0.0.1:8787/mcp",
+      "toolName": "coffee_price_search",
+      "toolArguments": {
+        "message": "{{query.rawText}}",
+        "drink": "{{query.drink}}",
+        "normalizedDrink": "{{query.normalizedDrink}}",
+        "size": "{{query.size}}",
+        "quantity": "{{query.quantity}}",
+        "address": "{{address.query}}"
+      },
+      "toolResultPath": "snapshot",
+      "timeoutMs": 120000
+    },
+    {
+      "id": "stdioGenericMcp",
+      "label": "本地 stdio MCP 查价源",
+      "enabled": false,
+      "type": "mcp",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:owner/coffee-mcp"],
+      "bearerTokenEnv": "COFFEE_PRICE_MCP_TOKEN",
+      "tokenEnvName": "COFFEE_PRICE_MCP_TOKEN",
       "toolName": "coffee_price_search",
       "toolArguments": {
         "message": "{{query.rawText}}",

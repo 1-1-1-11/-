@@ -38,9 +38,12 @@ export interface ExternalSourceConfig {
   label?: string;
   enabled?: boolean;
   type?: "command" | "http" | "mcp";
+  transport?: "http" | "stdio";
   command?: string;
   args?: string[];
   cwd?: string;
+  env?: Record<string, string>;
+  envFrom?: Record<string, string>;
   timeoutMs?: number;
   url?: string;
   method?: "POST" | "PUT";
@@ -48,6 +51,7 @@ export interface ExternalSourceConfig {
   headerEnv?: Record<string, string>;
   bearerTokenEnv?: string;
   bearerTokenFile?: string;
+  tokenEnvName?: string;
   endpoint?: string;
   toolName?: string;
   toolArguments?: Record<string, unknown>;

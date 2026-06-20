@@ -5,6 +5,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -216,6 +217,82 @@ test("external MCP provider calls a configured tool with rendered arguments", as
   } finally {
     await mcp.close();
     await close(server);
+  }
+});
+
+test("external stdio MCP provider launches a local MCP command", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-stdio-mcp-"));
+  const scriptPath = join(dir, "stdio-server.mjs");
+  const mcpUrl = pathToFileURL(join(process.cwd(), "node_modules", "@modelcontextprotocol", "sdk", "dist", "esm", "server", "mcp.js")).href;
+  const stdioUrl = pathToFileURL(join(process.cwd(), "node_modules", "@modelcontextprotocol", "sdk", "dist", "esm", "server", "stdio.js")).href;
+  const zodUrl = pathToFileURL(join(process.cwd(), "node_modules", "zod", "index.js")).href;
+  await writeFile(
+    scriptPath,
+    [
+      `import { McpServer } from ${JSON.stringify(mcpUrl)};`,
+      `import { StdioServerTransport } from ${JSON.stringify(stdioUrl)};`,
+      `import { z } from ${JSON.stringify(zodUrl)};`,
+      "const server = new McpServer({ name: 'stdio-coffee-test', version: '0.1.0' });",
+      "server.tool('quoteCoffee', { address: z.string(), drink: z.string() }, async (args) => ({",
+      "  content: [{",
+      "    type: 'text',",
+      "    text: JSON.stringify({",
+      "      snapshot: {",
+      "        source: 'stdio-mcp',",
+      "        offers: [{",
+      "          brand: '瑞幸',",
+      "          storeName: `stdio:${process.env.COFFEE_CHILD_TOKEN}`,",
+      "          drinkName: args.drink,",
+      "          normalizedDrink: 'americano',",
+      "          size: '中杯',",
+      "          fulfillment: 'pickup',",
+      "          itemPrice: 8.8,",
+      "          totalPrice: 8.8",
+      "        }]",
+      "      }",
+      "    })",
+      "  }]",
+      "}));",
+      "await server.connect(new StdioServerTransport());"
+    ].join("\n"),
+    "utf8"
+  );
+
+  const previousToken = process.env.COFFEE_PARENT_TOKEN;
+  process.env.COFFEE_PARENT_TOKEN = "fake-stdio-token";
+  try {
+    const provider = new ExternalCommandProvider({
+      id: "stdio-mcp",
+      type: "mcp",
+      transport: "stdio",
+      command: process.execPath,
+      args: [scriptPath],
+      bearerTokenEnv: "COFFEE_PARENT_TOKEN",
+      tokenEnvName: "COFFEE_CHILD_TOKEN",
+      toolName: "quoteCoffee",
+      toolResultPath: "snapshot",
+      toolArguments: {
+        drink: "{{query.drink}}",
+        address: "{{address.query}}"
+      },
+      timeoutMs: 10_000
+    });
+    const result = await provider.search({
+      query: parseCoffeeCommand("查公司附近冰美式"),
+      config: config(),
+      address: { alias: "公司", label: "公司", query: "深圳南山区科技园" }
+    });
+
+    assert.ok(Array.isArray(result), JSON.stringify(result));
+    assert.equal(result[0]?.source, "stdio-mcp");
+    assert.equal(result[0]?.storeName, "stdio:fake-stdio-token");
+    assert.equal(result[0]?.totalPrice, 8.8);
+  } finally {
+    if (previousToken === undefined) {
+      delete process.env.COFFEE_PARENT_TOKEN;
+    } else {
+      process.env.COFFEE_PARENT_TOKEN = previousToken;
+    }
   }
 });
 

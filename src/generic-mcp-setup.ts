@@ -1,7 +1,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 import { normalizeConfig } from "./config.js";
 import { ExternalCommandProvider } from "./providers/external-command-provider.js";
@@ -15,12 +17,18 @@ export interface GenericMcpSetupOptions {
   id: string;
   label: string;
   endpoint: string;
+  transport: "http" | "stdio";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  envFrom?: Record<string, string>;
   toolName: string;
   toolArguments?: Record<string, unknown>;
   toolResultPath?: string;
   timeoutMs: number;
   bearerTokenEnv?: string;
   bearerTokenFile?: string;
+  tokenEnvName?: string;
   dryRun: boolean;
   probeCall: boolean;
   sampleMessage: string;
@@ -74,12 +82,18 @@ export function parseGenericMcpSetupArgs(
     configPath: "config/coffee-price.config.json",
     id: "genericMcp",
     label: "通用 MCP 直连查价源",
+    transport: env.COFFEE_PRICE_MCP_TRANSPORT === "stdio" ? "stdio" : "http",
     endpoint: env.COFFEE_PRICE_MCP_URL ?? "",
+    command: env.COFFEE_PRICE_MCP_COMMAND,
+    args: parseJsonStringArray(env.COFFEE_PRICE_MCP_ARGS),
+    env: parseJsonObjectEnv(env.COFFEE_PRICE_MCP_CHILD_ENV),
+    envFrom: parseJsonStringRecord(env.COFFEE_PRICE_MCP_ENV_FROM),
     toolName: env.COFFEE_PRICE_MCP_TOOL ?? "coffee_price_search",
     toolResultPath: "snapshot",
     timeoutMs: 120_000,
     bearerTokenEnv: env.COFFEE_PRICE_MCP_TOKEN_ENV,
     bearerTokenFile: env.COFFEE_PRICE_MCP_TOKEN_FILE,
+    tokenEnvName: env.COFFEE_PRICE_MCP_TOKEN_ENV_NAME,
     dryRun: args.includes("--dry-run"),
     probeCall: !args.includes("--skip-probe-call"),
     sampleMessage: "查公司附近冰美式",
@@ -106,6 +120,31 @@ export function parseGenericMcpSetupArgs(
     }
     if (arg === "--endpoint") {
       options.endpoint = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--transport") {
+      options.transport = parseTransport(requireValue(arg, next));
+      index += 1;
+      continue;
+    }
+    if (arg === "--command") {
+      options.command = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--args-json") {
+      options.args = parseJsonStringArray(requireValue(arg, next)) ?? [];
+      index += 1;
+      continue;
+    }
+    if (arg === "--env-json") {
+      options.env = parseRequiredJsonStringRecord(arg, requireValue(arg, next));
+      index += 1;
+      continue;
+    }
+    if (arg === "--env-from-json") {
+      options.envFrom = parseRequiredJsonStringRecord(arg, requireValue(arg, next));
       index += 1;
       continue;
     }
@@ -143,6 +182,11 @@ export function parseGenericMcpSetupArgs(
       index += 1;
       continue;
     }
+    if (arg === "--token-env-name") {
+      options.tokenEnvName = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
     if (arg === "--sample") {
       options.sampleMessage = requireValue(arg, next);
       index += 1;
@@ -162,8 +206,11 @@ export function parseGenericMcpSetupArgs(
     }
   }
 
-  if (!options.endpoint) {
+  if (options.transport === "http" && !options.endpoint) {
     throw new Error("缺少 MCP endpoint；请传 --endpoint 或设置 COFFEE_PRICE_MCP_URL");
+  }
+  if (options.transport === "stdio" && !options.command) {
+    throw new Error("缺少 stdio MCP command；请传 --command 或设置 COFFEE_PRICE_MCP_COMMAND");
   }
   if (!options.toolName) {
     throw new Error("缺少 MCP tool 名称；请传 --tool 或设置 COFFEE_PRICE_MCP_TOOL");
@@ -207,7 +254,7 @@ export async function setupGenericMcpSource(
   if (options.probeCall && config && toolCheck.status !== "fail") {
     checks.push(await checkProbeCall(source, config, options, deps));
   } else if (!options.probeCall) {
-    checks.push(warn("probe-call", "样例试调", "未执行样例调用；只验证了 MCP endpoint 和 tool 名称", "加 --probe-call 可验证 tool 是否返回统一 PlatformSnapshot"));
+    checks.push(warn("probe-call", "样例试调", "未执行样例调用；只验证了 MCP 入口和 tool 名称", "加 --probe-call 可验证 tool 是否返回统一 PlatformSnapshot"));
   }
 
   const status = summarize(checks);
@@ -251,7 +298,7 @@ export function formatGenericMcpSetupResult(result: GenericMcpSetupResult): stri
     lines.push(
       "",
       `${writeAction}: ${result.configPath}`,
-      `外部源: ${result.source.id} -> ${result.source.endpoint} (${result.source.toolName})`
+      `外部源: ${formatSourceTarget(result.source)} (${result.source.toolName})`
     );
   }
   return lines.join("\n");
@@ -266,9 +313,9 @@ async function checkTool(
     if (tools.includes(source.toolName ?? "")) {
       return pass("mcp-tool", "MCP tool", `发现 ${source.toolName}`);
     }
-    return fail("mcp-tool", "MCP tool", `未发现 ${source.toolName}`, tools.length ? tools.join(", ") : "endpoint 没有返回 tools");
+    return fail("mcp-tool", "MCP tool", `未发现 ${source.toolName}`, tools.length ? tools.join(", ") : "MCP 入口没有返回 tools");
   } catch (error) {
-    return fail("mcp-tool", "MCP endpoint", "无法连接或列出 tools", errorMessage(error));
+    return fail("mcp-tool", "MCP 入口", "无法连接或列出 tools", errorMessage(error));
   }
 }
 
@@ -310,18 +357,11 @@ async function probeSource(
 }
 
 async function listMcpTools(source: ExternalSourceConfig): Promise<string[]> {
-  if (!source.endpoint) {
-    throw new Error("source.endpoint missing");
-  }
   const client = new Client({
     name: `coffee-price-${source.id}-setup`,
     version: "0.1.0"
   });
-  const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
-    requestInit: {
-      headers: await buildHeaders(source)
-    }
-  });
+  const transport = await createMcpTransport(source);
   try {
     await client.connect(transport);
     const result = await client.listTools();
@@ -329,6 +369,29 @@ async function listMcpTools(source: ExternalSourceConfig): Promise<string[]> {
   } finally {
     await client.close();
   }
+}
+
+async function createMcpTransport(source: ExternalSourceConfig): Promise<Transport> {
+  if (source.transport === "stdio") {
+    if (!source.command) {
+      throw new Error("stdio mcp source.command missing");
+    }
+    return new StdioClientTransport({
+      command: source.command,
+      args: source.args ?? [],
+      cwd: source.cwd,
+      stderr: "pipe",
+      env: await buildStdioEnv(source)
+    });
+  }
+  if (!source.endpoint) {
+    throw new Error("http mcp source.endpoint missing");
+  }
+  return new StreamableHTTPClientTransport(new URL(source.endpoint), {
+    requestInit: {
+      headers: await buildHeaders(source)
+    }
+  });
 }
 
 async function buildHeaders(source: ExternalSourceConfig): Promise<Record<string, string>> {
@@ -357,20 +420,65 @@ async function buildHeaders(source: ExternalSourceConfig): Promise<Record<string
   return headers;
 }
 
+async function buildStdioEnv(source: ExternalSourceConfig): Promise<Record<string, string>> {
+  const env: Record<string, string> = {
+    ...getDefaultEnvironment(),
+    ...(source.env ?? {})
+  };
+  for (const [childName, parentName] of Object.entries(source.envFrom ?? {})) {
+    const value = process.env[parentName];
+    if (value !== undefined) {
+      env[childName] = value;
+    }
+  }
+  const token = await readBearerTokenForSetup(source);
+  if (token) {
+    env[source.tokenEnvName ?? source.bearerTokenEnv ?? "BEARER_TOKEN"] = token;
+  }
+  return env;
+}
+
+async function readBearerTokenForSetup(source: ExternalSourceConfig): Promise<string | null> {
+  if (source.bearerTokenEnv && process.env[source.bearerTokenEnv]) {
+    return process.env[source.bearerTokenEnv]!.trim();
+  }
+  if (!source.bearerTokenFile) {
+    return null;
+  }
+  try {
+    return (await readFile(source.bearerTokenFile, "utf8")).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function buildSource(options: GenericMcpSetupOptions): ExternalSourceConfig {
   return {
     id: options.id,
     label: options.label,
     enabled: true,
     type: "mcp",
-    endpoint: options.endpoint,
+    transport: options.transport,
+    endpoint: options.transport === "http" ? options.endpoint : undefined,
+    command: options.transport === "stdio" ? options.command : undefined,
+    args: options.transport === "stdio" ? options.args ?? [] : undefined,
+    env: options.transport === "stdio" ? options.env : undefined,
+    envFrom: options.transport === "stdio" ? options.envFrom : undefined,
     toolName: options.toolName,
     toolArguments: options.toolArguments ?? DEFAULT_TOOL_ARGUMENTS,
     toolResultPath: options.toolResultPath,
     timeoutMs: options.timeoutMs,
     bearerTokenEnv: options.bearerTokenEnv,
-    bearerTokenFile: options.bearerTokenFile
+    bearerTokenFile: options.bearerTokenFile,
+    tokenEnvName: options.tokenEnvName
   };
+}
+
+function formatSourceTarget(source: ExternalSourceConfig): string {
+  if (source.transport === "stdio") {
+    return `${source.id} -> ${[source.command, ...(source.args ?? [])].filter(Boolean).join(" ")}`;
+  }
+  return `${source.id} -> ${source.endpoint}`;
 }
 
 function offerTotal(offer: OfferCandidate): number {
@@ -422,6 +530,54 @@ function parseJsonObject(flag: string, value: string): Record<string, unknown> {
     throw new Error(`${flag} 必须是 JSON object`);
   }
   return parsed as Record<string, unknown>;
+}
+
+function parseJsonObjectEnv(value: string | undefined): Record<string, string> | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return parseJsonStringRecord(value);
+}
+
+function parseJsonStringRecord(value: string | undefined): Record<string, string> | undefined {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    return parseRequiredJsonStringRecord("JSON", value);
+  } catch {
+    return undefined;
+  }
+}
+
+function parseRequiredJsonStringRecord(flag: string, value: string): Record<string, string> {
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${flag} 必须是 JSON object`);
+  }
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.some(([, entry]) => typeof entry !== "string")) {
+    throw new Error(`${flag} 的值必须都是字符串`);
+  }
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
+function parseJsonStringArray(value: string | undefined): string[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== "string")) {
+    throw new Error("MCP args 必须是 JSON 字符串数组");
+  }
+  return parsed;
+}
+
+function parseTransport(value: string): "http" | "stdio" {
+  if (value === "http" || value === "stdio") {
+    return value;
+  }
+  throw new Error("--transport 只能是 http 或 stdio");
 }
 
 function parsePositiveInteger(flag: string, value: string): number {

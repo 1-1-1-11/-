@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { fetch } from "undici";
 
 import { parsePlatformSnapshot } from "./platform-snapshot-provider.js";
@@ -72,8 +74,12 @@ async function runMcpSource(
   source: ExternalSourceConfig,
   request: ExternalPriceSourceRequest
 ): Promise<PlatformSnapshot> {
-  if (!source.endpoint) {
-    throw new Error("mcp external source requires endpoint");
+  if (source.transport === "stdio") {
+    if (!source.command) {
+      throw new Error("stdio mcp external source requires command");
+    }
+  } else if (!source.endpoint) {
+    throw new Error("http mcp external source requires endpoint");
   }
   if (!source.toolName) {
     throw new Error("mcp external source requires toolName");
@@ -83,11 +89,7 @@ async function runMcpSource(
     name: `coffee-price-${source.id}-mcp-source`,
     version: "0.1.0"
   });
-  const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
-    requestInit: {
-      headers: await buildMcpHeaders(source)
-    }
-  });
+  const transport = await createMcpTransport(source);
   try {
     await client.connect(transport);
     const result = await client.callTool(
@@ -102,6 +104,23 @@ async function runMcpSource(
   } finally {
     await client.close();
   }
+}
+
+async function createMcpTransport(source: ExternalSourceConfig): Promise<Transport> {
+  if (source.transport === "stdio") {
+    return new StdioClientTransport({
+      command: source.command!,
+      args: source.args ?? [],
+      cwd: source.cwd,
+      stderr: "pipe",
+      env: await buildStdioEnv(source)
+    });
+  }
+  return new StreamableHTTPClientTransport(new URL(source.endpoint!), {
+    requestInit: {
+      headers: await buildMcpHeaders(source)
+    }
+  });
 }
 
 function spawnJsonCommand(source: ExternalSourceConfig, request: ExternalPriceSourceRequest): Promise<string> {
@@ -207,6 +226,24 @@ async function buildMcpHeaders(source: ExternalSourceConfig): Promise<Record<str
     headers.authorization = `Bearer ${bearerToken}`;
   }
   return headers;
+}
+
+async function buildStdioEnv(source: ExternalSourceConfig): Promise<Record<string, string>> {
+  const env: Record<string, string> = {
+    ...getDefaultEnvironment(),
+    ...(source.env ?? {})
+  };
+  for (const [childName, parentName] of Object.entries(source.envFrom ?? {})) {
+    const value = process.env[parentName];
+    if (value !== undefined) {
+      env[childName] = value;
+    }
+  }
+  const bearerToken = await readBearerToken(source);
+  if (bearerToken) {
+    env[source.tokenEnvName ?? source.bearerTokenEnv ?? "BEARER_TOKEN"] = bearerToken;
+  }
+  return env;
 }
 
 async function readBearerToken(source: ExternalSourceConfig): Promise<string | null> {
