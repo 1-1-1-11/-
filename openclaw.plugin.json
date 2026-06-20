@@ -34,7 +34,7 @@
   },
   "contracts": {
     "tools": [
-      "coffee_price.search"
+      "coffee_price_search"
     ]
   }
 }

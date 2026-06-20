@@ -1,12 +1,12 @@
 # OpenClaw 微信咖啡比价助手
 
-本项目是一个本机 Windows 常驻的咖啡查价工具骨架：微信私聊进入 OpenClaw，OpenClaw 调用 `coffee_price.search`，工具按常用地址返回附近主流连锁咖啡的外卖到手价和自取价榜单。
+本项目是一个本机 Windows 常驻的咖啡查价工具骨架：微信私聊进入 OpenClaw，OpenClaw 调用 `coffee_price_search`，工具按常用地址返回附近主流连锁咖啡的外卖到手价和自取价榜单。
 
 第一版不自动下单，不扫非品牌小店，不保存平台密码。平台验证码、登录失效、门店无货时会明确返回原因，不编造价格。
 
 ## 当前实现
 
-- `coffee_price.search` OpenClaw tool plugin
+- `coffee_price_search` OpenClaw tool plugin
 - 微信消息文本解析：如 `查公司附近冰美式`、`查咖啡 冰美式 两杯`
 - 本地配置读取：地址、品牌池、渠道开关、独立浏览器 profile 路径
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序

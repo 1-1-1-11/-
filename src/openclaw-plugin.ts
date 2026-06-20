@@ -31,7 +31,7 @@ export default defineToolPlugin({
   configSchema,
   tools: (tool) => [
     tool({
-      name: "coffee_price.search",
+      name: "coffee_price_search",
       label: "Coffee Price Search",
       description:
         "Compare nearby chain coffee delivery and pickup prices for a WeChat request. Returns ranked prices and purchase links without placing an order.",
