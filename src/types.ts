@@ -37,10 +37,17 @@ export interface ExternalSourceConfig {
   id: string;
   label?: string;
   enabled?: boolean;
-  command: string;
+  type?: "command" | "http";
+  command?: string;
   args?: string[];
   cwd?: string;
   timeoutMs?: number;
+  url?: string;
+  method?: "POST" | "PUT";
+  headers?: Record<string, string>;
+  headerEnv?: Record<string, string>;
+  bearerTokenEnv?: string;
+  bearerTokenFile?: string;
 }
 
 export interface PriceBookRefreshQueryConfig {

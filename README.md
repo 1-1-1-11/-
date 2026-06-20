@@ -11,7 +11,7 @@
 - 本地配置读取：地址、品牌池、渠道开关、独立浏览器 profile 路径
 - 本地价格库 provider：默认启用 `config/pricebook.json`，不打开外卖 H5 页面即可返回可比榜单
 - 城市参考价 provider：无 token 时也能给出星巴克/瑞幸/库迪的非实时横向参考
-- 外部命令/MCP provider：`externalSources` 可以桥接授权查价 API、MCP 工具或自有券源脚本
+- 外部源 provider：`externalSources` 可以桥接授权查价 API、MCP/CLI 工具、HTTP 服务或自有券源脚本
 - 瑞幸官方 MCP 设置器：`luckin:setup` 可导入 token、启用外部源、检查 readiness 并刷新价格库
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序
 - 浏览器页面提取器：用独立 profile 打开页面，按 CSS 选择器识别登录/验证码/无货，并提取价格候选
@@ -163,7 +163,7 @@ openclaw gateway restart
 
 `cityBenchmark` 是无 token 兜底源，价格逻辑参考 ClawHub 的 Coffee Prices by City：按城市分级和品牌基础价输出参考价。它适合在没有瑞幸 token、没有外卖平台登录态时做品牌横向比较；它不是门店实时售价，不包含配送费、门店库存、平台券和购买页。
 
-`externalSources` 用于接授权接口或 MCP/CLI 工具。工具会把 `{ query, address }` JSON 写入外部命令的 stdin，并要求 stdout 返回一个 `PlatformSnapshot` JSON。示例：
+`externalSources` 用于接授权接口、MCP/CLI 工具、云手机服务或自有券源。命令行模式会把 `{ query, address }` JSON 写入外部命令的 stdin，并要求 stdout 返回一个 `PlatformSnapshot` JSON。示例：
 
 ```json
 {
@@ -172,6 +172,7 @@ openclaw gateway restart
       "id": "mcp-price-feed",
       "label": "MCP 查价源",
       "enabled": true,
+      "type": "command",
       "command": "node",
       "args": ["scripts/example-external-price-source.mjs"],
       "timeoutMs": 30000
@@ -180,7 +181,25 @@ openclaw gateway restart
 }
 ```
 
-这个桥接层也可以包装 `mcporter call ...`、内部 HTTP API、定时采集器输出等。它不要求外部源一定是网页抓取；只要输出统一 snapshot，排序和微信回复逻辑就会复用同一套代码。
+HTTP 模式会用 `POST` 发送同一个 JSON 请求体，响应可以直接是 `PlatformSnapshot`，也可以包在 `data`、`result` 或 `snapshot` 字段中：
+
+```json
+{
+  "externalSources": [
+    {
+      "id": "orderwise-http",
+      "label": "云手机外卖比价 HTTP",
+      "enabled": true,
+      "type": "http",
+      "url": "http://127.0.0.1:18080/coffee-price/search",
+      "timeoutMs": 120000,
+      "bearerTokenEnv": "COFFEE_PRICE_HTTP_TOKEN"
+    }
+  ]
+}
+```
+
+HTTP 源适合接 OrderWise、meituan-cli 这类云手机/App 自动化服务，或者你自己的本地价格聚合 API。请求头可以用 `headers` 写固定值；敏感 token 优先用 `bearerTokenEnv` 或 `bearerTokenFile`，不要写进 Git 仓库。这个桥接层不要求外部源一定是网页抓取；只要输出统一 snapshot，排序和微信回复逻辑就会复用同一套代码。
 
 ### 瑞幸官方 MCP 源
 
@@ -263,7 +282,7 @@ npm run pricebook:refresh
 npm run pricebook:refresh -- --query "查公司附近冰美式"
 ```
 
-刷新命令只调用外部命令/MCP 源，不会打开美团/饿了么 H5，也不会处理或绕过验证码。外部源没有返回可比价格时，命令会失败并保留现有 `pricebook.json` 不变；成功时会替换同地址、同饮品、同规格的旧条目，并保留其它饮品/地址的旧条目。
+刷新命令只调用已启用的外部源（命令行、MCP 桥接或 HTTP 服务），不会打开美团/饿了么 H5，也不会处理或绕过验证码。外部源没有返回可比价格时，命令会失败并保留现有 `pricebook.json` 不变；成功时会替换同地址、同饮品、同规格的旧条目，并保留其它饮品/地址的旧条目。
 
 ## 浏览器提取器
 
