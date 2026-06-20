@@ -57,6 +57,10 @@ export function formatLiveReadinessReport(report: LiveReadinessReport): string {
       lines.push(`  ${check.detail}`);
     }
   }
+  const batchCommand = buildBatchCalibrationCommand(report.checks);
+  if (batchCommand) {
+    lines.push(`下一步批量校准: ${batchCommand}`);
+  }
   return lines.join("\n");
 }
 
@@ -198,4 +202,31 @@ function captureWithSaveUrlCommand(source: keyof SourceConfig): string {
 
 function captureAuditCommand(source: keyof SourceConfig): string {
   return `npm run capture -- "查公司附近冰美式" --source ${source} --manual-ms 120000`;
+}
+
+function buildBatchCalibrationCommand(checks: LiveReadinessCheck[]): string | null {
+  const placeholderSources = SOURCE_KEYS.filter((source) =>
+    checks.some(
+      (check) =>
+        check.id === `source-${source}-url` &&
+        check.status === "fail" &&
+        check.message === "仍是 example.com 占位入口 URL"
+    )
+  );
+  if (placeholderSources.length < 2) {
+    return null;
+  }
+
+  const urlArgs = placeholderSources
+    .map((source) => `${urlFlag(source)} "<real-${sourceLabel(source)}-url>"`)
+    .join(" ");
+  return `npm run capture:calibrate -- "查公司附近冰美式" ${urlArgs} --manual-ms 120000`;
+}
+
+function urlFlag(source: keyof SourceConfig): string {
+  return source === "brandOfficial" ? "--url-brand" : `--url-${source}`;
+}
+
+function sourceLabel(source: keyof SourceConfig): string {
+  return source === "brandOfficial" ? "brand" : source;
 }

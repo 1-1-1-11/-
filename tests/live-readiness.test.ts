@@ -80,6 +80,38 @@ test("live readiness fails on doctor failure, placeholder URLs, and missing sele
   assert.match(text, /--save-url/);
 });
 
+test("live readiness suggests batch calibration when multiple source URLs are placeholders", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    sources: { meituan: true, eleme: true, brandOfficial: true },
+    browserSources: {
+      meituan: baseConfig.browserSources!.meituan!,
+      eleme: {
+        ...baseConfig.browserSources!.meituan!,
+        source: "eleme",
+        entryUrl: "https://example.com/eleme/search?q={{drink}}"
+      },
+      brandOfficial: {
+        ...baseConfig.browserSources!.meituan!,
+        source: "brandOfficial",
+        entryUrl: "https://example.com/brand/search?q={{drink}}"
+      }
+    }
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: {}
+  });
+  const text = formatLiveReadinessReport(report);
+
+  assert.match(text, /npm run capture:calibrate/);
+  assert.match(text, /--url-meituan "<real-meituan-url>"/);
+  assert.match(text, /--url-eleme "<real-eleme-url>"/);
+  assert.match(text, /--url-brand "<real-brand-url>"/);
+});
+
 test("live readiness passes with healthy doctor, real source URL, and clean selector audit", () => {
   const config: CoffeePriceConfig = {
     ...baseConfig,
