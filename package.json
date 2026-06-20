@@ -23,6 +23,7 @@
     "orderwise:mcp-source": "tsx src/orderwise-mcp-source-cli.ts",
     "orderwise:doctor": "tsx src/orderwise-mcp-doctor-cli.ts",
     "orderwise:serve": "tsx src/orderwise-mcp-serve-cli.ts",
+    "mcp:setup": "tsx src/generic-mcp-setup-cli.ts",
     "luckin:doctor": "tsx src/luckin-mcp-doctor-cli.ts",
     "luckin:enable": "tsx src/luckin-mcp-enable-cli.ts",
     "luckin:import-token": "tsx src/luckin-token-import-cli.ts",

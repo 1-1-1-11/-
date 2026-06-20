@@ -210,6 +210,21 @@ MCP 直连模式会连接 Streamable HTTP MCP endpoint，调用指定 tool，并
 
 通用 MCP tool 可以直接返回 `PlatformSnapshot`，也可以返回 `{ "snapshot": { ... } }` 并配置 `toolResultPath: "snapshot"`。如果 MCP 返回的是 OrderWise 这类自定义结构，继续使用下文的专用桥接脚本，把结果先映射成统一 snapshot。
 
+可以用 `mcp:setup` 探测并写入一个别人已经部署好的 MCP endpoint。默认会列出 tools，并用样例消息试调一次，只有 tool 返回统一 `PlatformSnapshot` 或 `{ snapshot: PlatformSnapshot }` 时才会通过：
+
+```powershell
+npm run mcp:setup -- --endpoint "http://127.0.0.1:8787/mcp" --tool "coffee_price_search" --sample "查公司附近冰美式"
+```
+
+如果 endpoint 需要 bearer token，不要把 token 写进仓库；在 Windows PowerShell 5.1 里先设置环境变量，再引用变量名：
+
+```powershell
+$env:COFFEE_PRICE_MCP_TOKEN = "你的 token"
+npm run mcp:setup -- --endpoint "https://example.com/mcp" --tool "coffee_price_search" --bearer-token-env COFFEE_PRICE_MCP_TOKEN
+```
+
+只想确认 endpoint 和 tool 名称、不试调返回结构时，可以传 `--skip-probe-call`。这会写入配置但带 `WARN`，后续真实查询如果 tool 不返回统一 snapshot 仍会失败。
+
 HTTP 模式会用 `POST` 发送同一个 JSON 请求体，响应可以直接是 `PlatformSnapshot`，也可以包在 `data`、`result` 或 `snapshot` 字段中：
 
 ```json
