@@ -154,11 +154,12 @@ npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 12000
 - `.runtime/captures/meituan.html`
 - `.runtime/captures/meituan.snapshot.json`
 - `.runtime/captures/meituan.audit.json`
+- `.runtime/captures/meituan.network.json`
 
 如果要指定输出位置：
 
 ```powershell
-npm run capture -- "查公司附近冰美式" --source meituan --html .runtime/captures/meituan.html --snapshot config/snapshots/meituan.live.json --audit .runtime/captures/meituan.audit.json
+npm run capture -- "查公司附近冰美式" --source meituan --html .runtime/captures/meituan.html --snapshot config/snapshots/meituan.live.json --audit .runtime/captures/meituan.audit.json --network .runtime/captures/meituan.network.json
 ```
 
 如果现场已经在浏览器里打开了真实平台页面，可以先不改配置，临时覆盖入口 URL：
@@ -181,7 +182,7 @@ npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://e
 
 批量校准时，某个渠道失败不会阻止后续渠道继续捕获；但只要有任一渠道失败，命令最终会返回非零退出码，并在输出里标出 `[source] FAILED: ...`。每次运行还会写出 `.runtime/captures/calibration-report.json`，里面记录每个渠道的成功/失败、HTML、snapshot、audit 路径和错误原因；需要改路径时加 `--report <path>`。
 
-捕获工具只保存页面内容、解析结果和 selector 诊断，不会保存密码，也不会绕过验证码。即使 `waitForSelector` 等不到候选行，工具也会继续保存 HTML 和 `*.audit.json`，方便判断当前是登录页、验证码页、无货页还是页面结构变了。页面结构变化时，优先用新捕获的 HTML 调整 `browserSources.<source>.selectors`。`*.audit.json` 用来定位选择器问题：先看 `statusMatches` 是否命中登录/验证码/无货，再看 `offerRows.count` 是否为 0，最后看每一行的 `missingRequiredFields`。
+捕获工具只保存页面内容、解析结果、selector 诊断和精简网络摘要，不会保存密码、cookie、响应正文或 URL 查询参数，也不会绕过验证码。即使 `waitForSelector` 等不到候选行，工具也会继续保存 HTML、`*.audit.json` 和 `*.network.json`，方便判断当前是登录页、验证码页、无货页、平台临时不可用还是页面结构变了。页面结构变化时，优先用新捕获的 HTML 调整 `browserSources.<source>.selectors`。`*.audit.json` 用来定位选择器问题：先看 `statusMatches` 是否命中登录/验证码/无货，再看 `offerRows.count` 是否为 0，最后看每一行的 `missingRequiredFields`。`*.network.json` 用来看 document/fetch/xhr 的状态码和 request failed 原因，不用于价格提取；其中 URL 只保留 origin/path，查询参数会写成 `<redacted>`。
 
 ## 购买页自动打开
 

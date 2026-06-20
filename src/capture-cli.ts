@@ -9,6 +9,7 @@ export interface CaptureCliOptions {
   htmlPath: string;
   snapshotPath: string;
   auditPath: string;
+  networkPath: string;
   entryUrlOverride?: string;
   saveEntryUrl?: boolean;
   manualWaitMs?: number;
@@ -39,6 +40,7 @@ export function parseCaptureCliArgs(args: string[]): CaptureCliOptions {
     htmlPath: readOption(args, "--html") ?? defaultPaths.htmlPath,
     snapshotPath: readOption(args, "--snapshot") ?? defaultPaths.snapshotPath,
     auditPath: readOption(args, "--audit") ?? defaultPaths.auditPath,
+    networkPath: readOption(args, "--network") ?? defaultPaths.networkPath,
     entryUrlOverride,
     saveEntryUrl,
     manualWaitMs
@@ -62,6 +64,8 @@ export function formatCaptureResult(
     `HTML: ${result.htmlPath}`,
     `Snapshot: ${result.snapshotPath}`,
     `Selector audit: ${result.auditPath}`,
+    `Network log: ${result.networkPath}`,
+    `Network entries: ${result.networkLog?.length ?? 0}`,
     `候选数: ${offerCount}`,
     `Selector rows: ${result.selectorAudit.offerRows.count}`,
     formatMissingFields(result),
@@ -79,6 +83,7 @@ function toCaptureInput(options: CaptureCliOptions): CaptureBrowserSourceInput {
     htmlPath: options.htmlPath,
     snapshotPath: options.snapshotPath,
     auditPath: options.auditPath,
+    networkPath: options.networkPath,
     entryUrlOverride: options.entryUrlOverride,
     saveEntryUrl: options.saveEntryUrl,
     manualWaitMs: options.manualWaitMs
@@ -89,11 +94,13 @@ function buildDefaultCapturePaths(source: keyof SourceConfig): {
   htmlPath: string;
   snapshotPath: string;
   auditPath: string;
+  networkPath: string;
 } {
   return {
     htmlPath: `.runtime/captures/${source}.html`,
     snapshotPath: `.runtime/captures/${source}.snapshot.json`,
-    auditPath: `.runtime/captures/${source}.audit.json`
+    auditPath: `.runtime/captures/${source}.audit.json`,
+    networkPath: `.runtime/captures/${source}.network.json`
   };
 }
 
@@ -133,6 +140,7 @@ function usage(): string {
     "  --html <path>        默认 .runtime/captures/<source>.html",
     "  --snapshot <path>    默认 .runtime/captures/<source>.snapshot.json",
     "  --audit <path>       默认 .runtime/captures/<source>.audit.json",
+    "  --network <path>     默认 .runtime/captures/<source>.network.json",
     "  --url <url>          临时覆盖 browserSources.<source>.entryUrl",
     "  --save-url           捕获成功后把 --url 写回 browserSources.<source>.entryUrl",
     "  --manual-ms <ms>     打开页面后等待人工登录/处理验证码的毫秒数"

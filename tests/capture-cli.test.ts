@@ -20,8 +20,21 @@ test("parses capture CLI options and default output paths", () => {
   assert.equal(parsed.htmlPath, ".runtime/captures/meituan.html");
   assert.equal(parsed.snapshotPath, ".runtime/captures/meituan.snapshot.json");
   assert.equal(parsed.auditPath, ".runtime/captures/meituan.audit.json");
+  assert.equal(parsed.networkPath, ".runtime/captures/meituan.network.json");
   assert.equal(parsed.manualWaitMs, 120000);
   assert.equal(parsed.entryUrlOverride, undefined);
+});
+
+test("parses capture CLI network log override", () => {
+  const parsed = parseCaptureCliArgs([
+    "查公司附近冰美式",
+    "--source",
+    "meituan",
+    "--network",
+    ".runtime/captures/meituan-debug.network.json"
+  ]);
+
+  assert.equal(parsed.networkPath, ".runtime/captures/meituan-debug.network.json");
 });
 
 test("parses capture CLI entry URL override", () => {

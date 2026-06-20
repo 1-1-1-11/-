@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
+import { redactNetworkLogUrl } from "./browser-network-log.js";
 import { applyBrowserSearchAction } from "./browser-search-action.js";
 import { waitForOptionalSelector } from "./browser-wait.js";
 import { readConfig } from "./config.js";
@@ -31,9 +32,20 @@ export interface BrowserPageLoadRequest {
 export interface BrowserPageLoadResult {
   url: string;
   html: string;
+  networkLog?: BrowserNetworkLogEntry[];
 }
 
 export type BrowserPageLoader = (request: BrowserPageLoadRequest) => Promise<BrowserPageLoadResult>;
+
+export interface BrowserNetworkLogEntry {
+  event: "response" | "requestfailed";
+  url: string;
+  method: string;
+  resourceType: string;
+  status?: number;
+  statusText?: string;
+  failureText?: string;
+}
 
 export interface CaptureBrowserSourceInput {
   configPath: string;
@@ -42,6 +54,7 @@ export interface CaptureBrowserSourceInput {
   htmlPath: string;
   snapshotPath: string;
   auditPath?: string;
+  networkPath?: string;
   entryUrlOverride?: string;
   saveEntryUrl?: boolean;
   manualWaitMs?: number;
@@ -53,6 +66,8 @@ export interface CaptureBrowserSourceResult {
   htmlPath: string;
   snapshotPath: string;
   auditPath?: string;
+  networkPath?: string;
+  networkLog?: BrowserNetworkLogEntry[];
   snapshot: PlatformSnapshot;
   selectorAudit: BrowserSourceSelectorAudit;
 }
@@ -89,6 +104,9 @@ export async function captureBrowserSource(
   if (input.auditPath) {
     await writeTextFile(input.auditPath, `${JSON.stringify(selectorAudit, null, 2)}\n`);
   }
+  if (input.networkPath) {
+    await writeTextFile(input.networkPath, `${JSON.stringify(page.networkLog ?? [], null, 2)}\n`);
+  }
   if (input.saveEntryUrl && input.entryUrlOverride) {
     const updated = setBrowserSourceEntryUrl(config, input.source, input.entryUrlOverride);
     await writeTextFile(input.configPath, `${JSON.stringify(updated.config, null, 2)}\n`);
@@ -99,6 +117,8 @@ export async function captureBrowserSource(
     htmlPath: input.htmlPath,
     snapshotPath: input.snapshotPath,
     auditPath: input.auditPath,
+    networkPath: input.networkPath,
+    networkLog: page.networkLog,
     snapshot,
     selectorAudit
   };
@@ -115,6 +135,7 @@ async function loadPageWithPersistentProfile(
 
   try {
     const page = context.pages()[0] ?? (await context.newPage());
+    const networkLog = attachNetworkLog(page);
     await page.goto(request.url, {
       waitUntil: request.spec.browser?.waitUntil ?? "domcontentloaded",
       timeout: request.spec.browser?.timeoutMs ?? 60_000
@@ -133,11 +154,68 @@ async function loadPageWithPersistentProfile(
     );
     return {
       url: page.url(),
-      html: await page.content()
+      html: await page.content(),
+      networkLog
     };
   } finally {
     await context.close();
   }
+}
+
+function attachNetworkLog(page: {
+  on(
+    event: "response",
+    handler: (response: {
+      url(): string;
+      status(): number;
+      statusText(): string;
+      request(): { method(): string; resourceType(): string };
+    }) => void
+  ): void;
+  on(
+    event: "requestfailed",
+    handler: (request: {
+      url(): string;
+      method(): string;
+      resourceType(): string;
+      failure(): { errorText: string } | null;
+    }) => void
+  ): void;
+}): BrowserNetworkLogEntry[] {
+  const entries: BrowserNetworkLogEntry[] = [];
+  page.on("response", (response) => {
+    const request = response.request();
+    const resourceType = request.resourceType();
+    const status = response.status();
+    if (!shouldRecordResponse(resourceType, status)) {
+      return;
+    }
+    entries.push({
+      event: "response",
+      url: redactNetworkLogUrl(response.url()),
+      method: request.method(),
+      resourceType,
+      status,
+      statusText: response.statusText()
+    });
+  });
+  page.on("requestfailed", (request) => {
+    entries.push({
+      event: "requestfailed",
+      url: redactNetworkLogUrl(request.url()),
+      method: request.method(),
+      resourceType: request.resourceType(),
+      failureText: request.failure()?.errorText
+    });
+  });
+  return entries;
+}
+
+function shouldRecordResponse(resourceType: string, status: number): boolean {
+  if (status >= 400) {
+    return true;
+  }
+  return resourceType === "document" || resourceType === "fetch" || resourceType === "xhr";
 }
 
 function resolveAddress(config: CoffeePriceConfig, addressAlias: string | null): AddressConfig {

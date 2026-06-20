@@ -13,6 +13,7 @@ test("captures a configured browser source into HTML and snapshot files", async 
   const htmlPath = join(dir, "captures", "meituan.html");
   const snapshotPath = join(dir, "captures", "meituan.snapshot.json");
   const auditPath = join(dir, "captures", "meituan.audit.json");
+  const networkPath = join(dir, "captures", "meituan.network.json");
   const requests: BrowserPageLoadRequest[] = [];
 
   await writeFile(
@@ -57,10 +58,21 @@ test("captures a configured browser source into HTML and snapshot files", async 
     htmlPath,
     snapshotPath,
     auditPath,
+    networkPath,
     pageLoader: async (request) => {
       requests.push(request);
       return {
         url: "https://example.com/search/result",
+        networkLog: [
+          {
+            event: "response",
+            url: "https://example.com/api/search",
+            method: "GET",
+            resourceType: "fetch",
+            status: 503,
+            statusText: "Service Unavailable"
+          }
+        ],
         html: `
           <article data-offer>
             <span data-brand>瑞幸</span>
@@ -93,7 +105,11 @@ test("captures a configured browser source into HTML and snapshot files", async 
   const audit = JSON.parse(await readFile(auditPath, "utf8"));
   assert.equal(audit.offerRows.count, 1);
   assert.deepEqual(audit.rows[0].missingRequiredFields, []);
+  const network = JSON.parse(await readFile(networkPath, "utf8"));
+  assert.equal(network[0].status, 503);
   assert.equal(result.auditPath, auditPath);
+  assert.equal(result.networkPath, networkPath);
+  assert.equal(result.networkLog?.[0]?.url, "https://example.com/api/search");
   assert.equal(result.selectorAudit.offerRows.count, 1);
   assert.equal(result.snapshotPath, snapshotPath);
 });
