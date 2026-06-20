@@ -253,6 +253,22 @@ npm run orderwise:mcp-source -- --endpoint "http://127.0.0.1:8703/mcp" --brands 
 
 作为 `externalSources` 运行时，它会从 stdin 读取 `{ query, address }`，对每个品牌调用一次 OrderWise `compare_prices(product_name=饮品, seller_name=品牌, apps=...)`，并把 `platforms[]` 或 `platform_results{}` 中的 `price`、`delivery_fee`、`pack_fee`、`total_fee` 映射成外卖到手价候选。示例配置已包含一个禁用的 `orderwiseMcp` 外部源。
 
+启动本机 OrderWise MCP 服务：
+
+```powershell
+npm run orderwise:serve
+```
+
+这个脚本使用兼容 FastMCP 3 的模块入口 `mcp_mode.mcp_server.order_wise_mcp_server`，并把 winget 常见 ADB 目录临时加入子进程 `PATH`。如果 OrderWise 源码或 Python 虚拟环境不在默认位置，可以传 `--repo`、`--python`、`--adb`。
+
+现场检查：
+
+```powershell
+npm run orderwise:doctor
+```
+
+它会检查 MCP endpoint 是否能列出 `compare_prices` 工具、`app_device_mapping.json` 是否仍是占位值，以及 `PHONE_AGENT_BASE_URL` / `PHONE_AGENT_MODEL` 是否已配置。
+
 可选环境变量：
 
 ```powershell

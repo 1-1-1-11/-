@@ -7,6 +7,11 @@ import {
   parseOrderWiseMcpSourceArgs,
   runOrderWiseMcpSourceCli
 } from "../src/orderwise-mcp-source.js";
+import {
+  parseOrderWiseDoctorArgs,
+  runOrderWiseDoctorCli
+} from "../src/orderwise-mcp-doctor.js";
+import { parseOrderWiseServeArgs } from "../src/orderwise-mcp-serve.js";
 import type { AddressConfig, CoffeeQuery } from "../src/types.js";
 
 const query: CoffeeQuery = {
@@ -225,4 +230,62 @@ test("package exposes OrderWise MCP source script", async () => {
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
 
   assert.match(pkg.scripts["orderwise:mcp-source"], /orderwise-mcp-source-cli\.ts/);
+});
+
+test("parses OrderWise doctor options and reports ready service", async () => {
+  const parsed = parseOrderWiseDoctorArgs([
+    "--endpoint",
+    "http://127.0.0.1:8703/mcp",
+    "--mapping",
+    "mapping.json",
+    "--json"
+  ]);
+
+  assert.equal(parsed.endpoint, "http://127.0.0.1:8703/mcp");
+  assert.equal(parsed.mappingPath, "mapping.json");
+  assert.equal(parsed.json, true);
+
+  const result = await runOrderWiseDoctorCli(["--json"], {
+    env: {
+      PHONE_AGENT_BASE_URL: "http://model.example/v1",
+      PHONE_AGENT_MODEL: "autoglm-phone"
+    },
+    listTools: async () => ["compare_prices"],
+    readFile: async () => JSON.stringify({ app1: "10.0.0.1:5555", app2: "10.0.0.2:5555" })
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.report.status, "pass");
+  assert.match(result.text, /compare_prices/);
+});
+
+test("OrderWise doctor fails on placeholder device mapping", async () => {
+  const result = await runOrderWiseDoctorCli([], {
+    env: {},
+    listTools: async () => ["compare_prices"],
+    readFile: async () => JSON.stringify({ app1: "your-cloud-phone-ip:port" })
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.report.checks.find((check) => check.id === "device-mapping")?.status, "fail");
+  assert.equal(result.report.checks.find((check) => check.id === "model")?.status, "warn");
+});
+
+test("parses OrderWise serve options and exposes package scripts", async () => {
+  const parsed = parseOrderWiseServeArgs([
+    "--repo",
+    ".runtime/ow",
+    "--python",
+    ".runtime/ow/.venv/Scripts/python.exe",
+    "--adb",
+    "D:\\tools\\adb.exe"
+  ]);
+
+  assert.equal(parsed.repoPath, ".runtime/ow");
+  assert.equal(parsed.pythonPath, ".runtime/ow/.venv/Scripts/python.exe");
+  assert.equal(parsed.adbPath, "D:\\tools\\adb.exe");
+
+  const pkg = JSON.parse(await readFile("package.json", "utf8"));
+  assert.match(pkg.scripts["orderwise:doctor"], /orderwise-mcp-doctor-cli\.ts/);
+  assert.match(pkg.scripts["orderwise:serve"], /orderwise-mcp-serve-cli\.ts/);
 });
