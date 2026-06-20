@@ -12,6 +12,11 @@ import {
   runOrderWiseDoctorCli
 } from "../src/orderwise-mcp-doctor.js";
 import { parseOrderWiseServeArgs } from "../src/orderwise-mcp-serve.js";
+import {
+  configureOrderWise,
+  loadOrderWiseEnvFile,
+  parseOrderWiseConfigureArgs
+} from "../src/orderwise-configure.js";
 import type { AddressConfig, CoffeeQuery } from "../src/types.js";
 
 const query: CoffeeQuery = {
@@ -238,11 +243,14 @@ test("parses OrderWise doctor options and reports ready service", async () => {
     "http://127.0.0.1:8703/mcp",
     "--mapping",
     "mapping.json",
+    "--env-file",
+    "orderwise.env",
     "--json"
   ]);
 
   assert.equal(parsed.endpoint, "http://127.0.0.1:8703/mcp");
   assert.equal(parsed.mappingPath, "mapping.json");
+  assert.equal(parsed.envPath, "orderwise.env");
   assert.equal(parsed.json, true);
 
   const result = await runOrderWiseDoctorCli(["--json"], {
@@ -278,14 +286,159 @@ test("parses OrderWise serve options and exposes package scripts", async () => {
     "--python",
     ".runtime/ow/.venv/Scripts/python.exe",
     "--adb",
-    "D:\\tools\\adb.exe"
+    "D:\\tools\\adb.exe",
+    "--env-file",
+    ".runtime/ow/.env.local"
   ]);
 
   assert.equal(parsed.repoPath, ".runtime/ow");
   assert.equal(parsed.pythonPath, ".runtime/ow/.venv/Scripts/python.exe");
   assert.equal(parsed.adbPath, "D:\\tools\\adb.exe");
+  assert.equal(parsed.envPath, ".runtime/ow/.env.local");
 
   const pkg = JSON.parse(await readFile("package.json", "utf8"));
   assert.match(pkg.scripts["orderwise:doctor"], /orderwise-mcp-doctor-cli\.ts/);
   assert.match(pkg.scripts["orderwise:serve"], /orderwise-mcp-serve-cli\.ts/);
+  assert.match(pkg.scripts["orderwise:configure"], /orderwise-configure-cli\.ts/);
+});
+
+test("configures OrderWise mapping, local env, and enabled source", async () => {
+  const parsed = parseOrderWiseConfigureArgs([
+    "--meituan",
+    "10.0.0.1:5555",
+    "--jd",
+    "10.0.0.2:5555",
+    "--phone-agent-base-url",
+    "http://model.local/v1",
+    "--phone-agent-model",
+    "autoglm-phone-9b",
+    "--phone-agent-api-key-env",
+    "PHONE_KEY",
+    "--phone-agent-max-steps",
+    "80",
+    "--enable-source"
+  ]);
+
+  assert.deepEqual(parsed.mapping, { app1: "10.0.0.1:5555", app2: "10.0.0.2:5555" });
+  assert.equal(parsed.phoneAgentBaseUrl, "http://model.local/v1");
+  assert.equal(parsed.phoneAgentModel, "autoglm-phone-9b");
+  assert.equal(parsed.phoneAgentApiKeyEnv, "PHONE_KEY");
+  assert.equal(parsed.phoneAgentMaxSteps, 80);
+  assert.equal(parsed.enableSource, true);
+
+  const writes = new Map<string, string>();
+  const result = await configureOrderWise(
+    {
+      ...parsed,
+      mappingPath: "mapping.json",
+      envPath: "orderwise.env",
+      configPath: "config.json"
+    },
+    {
+      readFile: async (path) => {
+        if (writes.has(path)) {
+          return writes.get(path)!;
+        }
+        if (path === "mapping.json") {
+          return JSON.stringify({ app1: "your-cloud-phone-ip:port", app3: "10.0.0.3:5555" });
+        }
+        if (path === "orderwise.env") {
+          return "PHONE_AGENT_MODEL=\"old-model\"\n";
+        }
+        if (path === "config.json") {
+          return JSON.stringify({
+            defaultAddressAlias: "公司",
+            addresses: [],
+            browserProfilePath: ".runtime/browser-profile",
+            brands: [],
+            sources: {},
+            externalSources: [{ id: "orderwiseMcp", enabled: false }]
+          });
+        }
+        throw new Error(path);
+      },
+      writeFile: async (path, content) => {
+        writes.set(path, content);
+      },
+      mkdir: async () => undefined
+    }
+  );
+
+  assert.equal(result.mappingChanged, true);
+  assert.equal(result.envChanged, true);
+  assert.equal(result.sourceChanged, true);
+  assert.deepEqual(JSON.parse(writes.get("mapping.json") ?? "{}"), {
+    app3: "10.0.0.3:5555",
+    app1: "10.0.0.1:5555",
+    app2: "10.0.0.2:5555"
+  });
+  assert.match(writes.get("orderwise.env") ?? "", /PHONE_AGENT_BASE_URL="http:\/\/model\.local\/v1"/);
+  assert.match(writes.get("orderwise.env") ?? "", /PHONE_AGENT_API_KEY_ENV="PHONE_KEY"/);
+  const nextConfig = JSON.parse(writes.get("config.json") ?? "{}");
+  assert.equal(nextConfig.externalSources[0].enabled, true);
+});
+
+test("OrderWise configure dry-run is a no-op without new values", async () => {
+  const result = await configureOrderWise(
+    {
+      ...parseOrderWiseConfigureArgs(["--dry-run"]),
+      mappingPath: "mapping.json",
+      envPath: "orderwise.env",
+      configPath: "config.json"
+    },
+    {
+      readFile: async (path) => {
+        if (path === "mapping.json") {
+          return "{\r\n  \"app1\": \"your-cloud-phone-ip:port\"\r\n}\r\n";
+        }
+        if (path === "orderwise.env") {
+          throw new Error("missing");
+        }
+        return "{}";
+      },
+      writeFile: async () => {
+        throw new Error("dry-run must not write files");
+      },
+      mkdir: async () => {
+        throw new Error("dry-run must not create directories");
+      }
+    }
+  );
+
+  assert.equal(result.mappingChanged, false);
+  assert.equal(result.envChanged, false);
+  assert.equal(result.sourceChanged, false);
+});
+
+test("OrderWise local env file is loaded by doctor helpers", async () => {
+  const env = await loadOrderWiseEnvFile(
+    "orderwise.env",
+    { PHONE_KEY: "secret-from-shell" },
+    async () => [
+      "PHONE_AGENT_BASE_URL=\"http://model.local/v1\"",
+      "PHONE_AGENT_MODEL=\"autoglm-phone-9b\"",
+      "PHONE_AGENT_API_KEY_ENV=\"PHONE_KEY\""
+    ].join("\n")
+  );
+
+  assert.equal(env.PHONE_AGENT_BASE_URL, "http://model.local/v1");
+  assert.equal(env.PHONE_AGENT_MODEL, "autoglm-phone-9b");
+  assert.equal(env.PHONE_AGENT_API_KEY, "secret-from-shell");
+
+  const result = await runOrderWiseDoctorCli(["--env-file", "orderwise.env"], {
+    env: { PHONE_KEY: "secret-from-shell" },
+    listTools: async () => ["compare_prices"],
+    readFile: async (path) => {
+      if (path === "orderwise.env") {
+        return [
+          "PHONE_AGENT_BASE_URL=\"http://model.local/v1\"",
+          "PHONE_AGENT_MODEL=\"autoglm-phone-9b\"",
+          "PHONE_AGENT_API_KEY_ENV=\"PHONE_KEY\""
+        ].join("\n");
+      }
+      return JSON.stringify({ app1: "10.0.0.1:5555" });
+    }
+  });
+
+  assert.equal(result.report.checks.find((check) => check.id === "model")?.status, "pass");
 });

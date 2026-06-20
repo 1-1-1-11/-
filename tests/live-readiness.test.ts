@@ -126,6 +126,38 @@ test("live readiness suggests batch calibration when multiple source URLs are pl
   assert.equal(report.actions.some((action) => action.id.startsWith("capture-audit:")), false);
 });
 
+test("live readiness suggests external source setup when all realtime sources are disabled", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    sources: { meituan: false, eleme: false, brandOfficial: false },
+    externalSources: [
+      { id: "luckinMcp", label: "瑞幸官方 MCP", enabled: false },
+      { id: "meituanApp", label: "美团 App 自动化", enabled: false },
+      { id: "orderwiseMcp", label: "OrderWise 多平台 MCP", enabled: false }
+    ]
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: {}
+  });
+
+  assert.equal(report.status, "warn");
+  assert.equal(report.checks.find((check) => check.id === "external-sources")?.status, "warn");
+  assert.deepEqual(
+    report.actions.map((action) => action.id),
+    [
+      "configure-external-source:orderwiseMcp",
+      "configure-external-source:luckinMcp",
+      "configure-external-source:meituanApp"
+    ]
+  );
+  assert.match(report.actions[0]?.command ?? "", /npm run orderwise:configure/);
+  assert.match(report.actions[1]?.command ?? "", /luckin:setup/);
+  assert.match(report.actions[2]?.command ?? "", /meituan:doctor/);
+});
+
 test("live readiness actions suggest selector capture after a real source URL is configured", () => {
   const config: CoffeePriceConfig = {
     ...baseConfig,

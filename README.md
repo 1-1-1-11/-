@@ -313,6 +313,21 @@ npm run orderwise:doctor
 
 它会检查 MCP endpoint 是否能列出 `compare_prices` 工具、`app_device_mapping.json` 是否仍是占位值，以及 `PHONE_AGENT_BASE_URL` / `PHONE_AGENT_MODEL` 是否已配置。
 
+配置云手机设备和 Phone Agent 模型时，推荐使用本项目的写入命令，不要手工编辑 `.runtime` 文件：
+
+```powershell
+$env:PHONE_AGENT_API_KEY = "你的 Phone Agent 或模型服务 API key"
+npm run orderwise:configure -- --meituan "10.0.0.10:5555" --jd "10.0.0.11:5555" --taobao "10.0.0.12:5555" --phone-agent-base-url "http://localhost:4244/v1" --phone-agent-model "autoglm-phone-9b" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source
+```
+
+`orderwise:configure` 会写入三处本机配置：
+
+- `.runtime/orderwise-agent/mcp_mode/mcp_server/app_device_mapping.json`：OrderWise 的 app 到云手机/Android 设备映射。
+- `.runtime/orderwise-agent/.env.local`：`PHONE_AGENT_BASE_URL`、`PHONE_AGENT_MODEL` 和 API key 环境变量名。
+- `config/coffee-price.config.json`：加 `--enable-source` 时启用示例里的 `orderwiseMcp` 外部源。
+
+`.runtime/` 不会提交到 Git。若只是预览会改什么，先加 `--dry-run`；实际写入后重启 `npm run orderwise:serve`，再运行 `npm run orderwise:doctor`。
+
 可选环境变量：
 
 ```powershell
@@ -503,7 +518,7 @@ npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://e
 npm run verify:live
 ```
 
-`verify:live` 是现场验收前置检查：它会运行 doctor，检查启用渠道是否配置了真实 `browserSources`，并读取 `.runtime/captures/<source>.audit.json` 确认 selector 已经命中候选行且没有缺失必填价格字段。它还会读取 `.runtime/captures/calibration-report.json` 作为上次批量校准的补充证据；需要指定其它路径时用 `--calibration-report <path>`。它失败时不会猜测价格，只会列出下一步要补的扫码、配置或 selector 校准动作；如果入口 URL 还是占位，它会直接给出 `npm run capture -- ... --url "<real-platform-url>" --save-url --manual-ms 120000` 这类可执行命令。多个渠道同时是占位 URL 时，“下一步动作”会给出一条 `npm run capture:calibrate -- ...` 批量校准命令。
+`verify:live` 是现场验收前置检查：它会运行 doctor，检查启用渠道是否配置了真实 `browserSources`，并读取 `.runtime/captures/<source>.audit.json` 确认 selector 已经命中候选行且没有缺失必填价格字段。它还会读取 `.runtime/captures/calibration-report.json` 作为上次批量校准的补充证据；需要指定其它路径时用 `--calibration-report <path>`。如果配置里有 MCP/授权外部源但全部未启用，它会给出 `WARN`，表示微信查价仍可用本地价格库/城市参考价，但还不是实时查价状态。它失败时不会猜测价格，只会列出下一步要补的扫码、配置或 selector 校准动作；如果入口 URL 还是占位，它会直接给出 `npm run capture -- ... --url "<real-platform-url>" --save-url --manual-ms 120000` 这类可执行命令。多个渠道同时是占位 URL 时，“下一步动作”会给出一条 `npm run capture:calibrate -- ...` 批量校准命令。
 
 如果确认 `.runtime/captures/calibration-report.json` 已经过期，只想检查当前 doctor、入口 URL 和 selector audit 状态，可以运行 `npm run verify:live -- --ignore-calibration-report`。这个开关只跳过上次批量校准报告，不会跳过扫码登录、真实 URL 或 selector 覆盖检查。
 
@@ -511,7 +526,7 @@ npm run verify:live
 
 需要给脚本或自动化消费验收结果时，可以运行 `npm run --silent verify:live -- --json`。JSON 输出包含 `status`、逐项 `checks` 和阶段化 `actions`，退出码仍保持一致：`FAIL` 返回非零，`PASS/WARN` 返回 0。加 `--silent` 是为了避免 npm 在 JSON 前打印脚本头。
 
-只想拿下一条可执行命令时，可以运行 `npm run --silent verify:next -- --ignore-calibration-report --command-only`。它会复用 `verify:live` 的检查结果，只输出第一条 action 的命令，例如当前现场状态会输出带 `--open-qr --qr-url-file .runtime/weixin-login/qr-url.txt --qr-html-file .runtime/weixin-login/qr.html` 的微信登录命令；需要查看全部动作时加 `--all`，需要机器读取时加 `--json`。
+只想拿下一条可执行命令时，可以运行 `npm run --silent verify:next -- --ignore-calibration-report --command-only`。它会复用 `verify:live` 的检查结果，只输出第一条 action 的命令；当前未启用实时外部源时，通常会优先输出 `orderwise:configure` 的配置命令。需要查看全部动作时加 `--all`，需要机器读取时加 `--json`。
 
 ## 价格边界
 

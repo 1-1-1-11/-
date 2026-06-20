@@ -45,6 +45,10 @@ export function buildLiveReadinessReport(
     checkDoctor(input.doctor),
     checkBrowserProfile(input.config)
   ];
+  const externalSourcesCheck = checkExternalSources(input.config);
+  if (externalSourcesCheck) {
+    checks.push(externalSourcesCheck);
+  }
   if (input.calibrationReport) {
     checks.push(checkCalibrationReport(input.calibrationReport));
   }
@@ -121,6 +125,30 @@ function checkBrowserProfile(config: CoffeePriceConfig): LiveReadinessCheck {
     return pass("browser-profile", "浏览器登录态目录", config.browserProfilePath);
   }
   return fail("browser-profile", "浏览器登录态目录", "browserProfilePath 为空");
+}
+
+function checkExternalSources(config: CoffeePriceConfig): LiveReadinessCheck | undefined {
+  const externalSources = config.externalSources ?? [];
+  if (externalSources.length === 0) {
+    return undefined;
+  }
+  const enabled = externalSources.filter((source) => source.enabled !== false);
+  if (enabled.length > 0) {
+    return pass(
+      "external-sources",
+      "实时外部源",
+      `已启用 ${enabled.length} 个 MCP/授权实时源`
+    );
+  }
+  const candidates = externalSources
+    .map((source) => source.label ?? source.id)
+    .join(", ");
+  return warn(
+    "external-sources",
+    "实时外部源",
+    "未启用 MCP/授权实时源；当前会使用本地价格库和城市参考价",
+    candidates ? `可配置源: ${candidates}` : undefined
+  );
 }
 
 function checkCalibrationReport(report: CaptureCalibrationReport): LiveReadinessCheck {
@@ -278,6 +306,8 @@ function captureAuditCommand(source: BrowserPlatformSource): string {
 function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveReadinessAction[] {
   const actions: LiveReadinessAction[] = [];
 
+  actions.push(...buildExternalSourceActions(input.config));
+
   for (const check of input.doctor?.checks ?? []) {
     if (check.status !== "fail") {
       continue;
@@ -360,6 +390,40 @@ function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveRe
     });
   }
 
+  return actions;
+}
+
+function buildExternalSourceActions(config: CoffeePriceConfig): LiveReadinessAction[] {
+  const externalSources = config.externalSources ?? [];
+  if (externalSources.length === 0 || externalSources.some((source) => source.enabled !== false)) {
+    return [];
+  }
+
+  const actions: LiveReadinessAction[] = [];
+  if (externalSources.some((source) => source.id === "orderwiseMcp")) {
+    actions.push({
+      id: "configure-external-source:orderwiseMcp",
+      label: "配置 OrderWise 多平台 MCP 实时源",
+      reason: "已有 OrderWise MCP 源配置，但仍未启用；需要填入云手机设备映射和 Phone Agent 模型配置",
+      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --meituan \"<meituan-cloud-phone-ip:port>\" --jd \"<jd-cloud-phone-ip:port>\" --taobao \"<taobao-cloud-phone-ip:port>\" --phone-agent-base-url \"<phone-agent-base-url>\" --phone-agent-model \"<phone-agent-model>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+    });
+  }
+  if (externalSources.some((source) => source.id === "luckinMcp")) {
+    actions.push({
+      id: "configure-external-source:luckinMcp",
+      label: "配置瑞幸官方 MCP 自取实时源",
+      reason: "已有瑞幸官方 MCP 源配置，但仍未启用；需要导入瑞幸开放平台 token",
+      command: "npm run --silent luckin:setup -- --token \"Authorization: Bearer <luckin-mcp-token>\""
+    });
+  }
+  if (externalSources.some((source) => source.id === "meituanApp")) {
+    actions.push({
+      id: "configure-external-source:meituanApp",
+      label: "检查美团 App 自动化实时源",
+      reason: "已有美团 App 自动化源配置，但仍未启用；需要连接已登录美团的 Android 设备或云手机",
+      command: "npm run meituan:doctor"
+    });
+  }
   return actions;
 }
 

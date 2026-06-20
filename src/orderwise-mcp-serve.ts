@@ -2,10 +2,13 @@ import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { delimiter, dirname, join, resolve } from "node:path";
 
+import { loadOrderWiseEnvFile } from "./orderwise-configure.js";
+
 export interface OrderWiseServeOptions {
   repoPath: string;
   pythonPath: string;
   adbPath?: string;
+  envPath: string;
 }
 
 export function parseOrderWiseServeArgs(
@@ -16,7 +19,8 @@ export function parseOrderWiseServeArgs(
   const options: OrderWiseServeOptions = {
     repoPath,
     pythonPath: env.ORDERWISE_PYTHON_PATH ?? defaultPythonPath(repoPath),
-    adbPath: env.MEITUAN_ADB_PATH ?? env.ORDERWISE_ADB_PATH
+    adbPath: env.MEITUAN_ADB_PATH ?? env.ORDERWISE_ADB_PATH,
+    envPath: env.ORDERWISE_ENV_FILE ?? ".runtime/orderwise-agent/.env.local"
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -35,6 +39,11 @@ export function parseOrderWiseServeArgs(
     }
     if (arg === "--adb") {
       options.adbPath = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--env-file") {
+      options.envPath = requireValue(arg, next);
       index += 1;
     }
   }
@@ -56,14 +65,15 @@ export async function runOrderWiseServeCli(args: string[], env: NodeJS.ProcessEn
     "可运行: git clone --depth 1 https://github.com/ucloud/orderwise-agent.git .runtime\\orderwise-agent"
   ]);
 
-  const adbPath = options.adbPath ?? wingetAdbCandidate(env);
+  const envWithFile = await loadOrderWiseEnvFile(options.envPath, env);
+  const adbPath = options.adbPath ?? wingetAdbCandidate(envWithFile);
   const nextEnv = adbPath
     ? {
-        ...env,
-        PATH: `${dirname(adbPath)}${delimiter}${env.PATH ?? ""}`,
-        Path: `${dirname(adbPath)}${delimiter}${env.Path ?? env.PATH ?? ""}`
+        ...envWithFile,
+        PATH: `${dirname(adbPath)}${delimiter}${envWithFile.PATH ?? ""}`,
+        Path: `${dirname(adbPath)}${delimiter}${envWithFile.Path ?? envWithFile.PATH ?? ""}`
       }
-    : env;
+    : envWithFile;
 
   const child = spawn(pythonPath, ["-m", "mcp_mode.mcp_server.order_wise_mcp_server"], {
     cwd: repoPath,

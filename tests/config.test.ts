@@ -86,6 +86,29 @@ test("resolves relative runtime paths from the config root", async () => {
   assert.equal(config.externalSources?.[0]?.cwd, dir);
 });
 
+test("can preserve disabled external sources for readiness diagnostics", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-price-disabled-sources-"));
+  const configPath = join(dir, "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      addresses: [],
+      browserProfilePath: ".runtime/browser-profile",
+      externalSources: [
+        { id: "enabled", command: "node" },
+        { id: "disabled", enabled: false, command: "node" }
+      ]
+    }),
+    "utf8"
+  );
+
+  const runtimeConfig = await readConfig(configPath);
+  const readinessConfig = await readConfig(configPath, { includeDisabledExternalSources: true });
+
+  assert.deepEqual(runtimeConfig.externalSources?.map((source) => source.id), ["enabled"]);
+  assert.deepEqual(readinessConfig.externalSources?.map((source) => source.id), ["enabled", "disabled"]);
+});
+
 test("reads UTF-8 config files with a Windows PowerShell BOM", async () => {
   const dir = await mkdtemp(join(tmpdir(), "coffee-price-bom-"));
   const configPath = join(dir, "config.json");

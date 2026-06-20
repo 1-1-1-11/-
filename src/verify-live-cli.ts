@@ -69,7 +69,9 @@ export async function runVerifyLiveCli(
   deps: VerifyLiveCliDeps = {}
 ): Promise<VerifyLiveCliResult> {
   const options = parseVerifyLiveCliArgs(args);
-  const config = await (deps.readConfig ?? readConfig)(options.configPath);
+  const config = deps.readConfig
+    ? await deps.readConfig(options.configPath)
+    : await readConfig(options.configPath, { includeDisabledExternalSources: true });
   const doctor = options.skipDoctor ? undefined : await (deps.runDoctor ?? runDoctor)();
   const readAudit = deps.readAudit ?? readAuditFile;
   const readNetworkLog = deps.readNetworkLog ?? readNetworkLogFile;

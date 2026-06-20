@@ -5,6 +5,10 @@ import type { BrandConfig, CoffeePriceConfig, SourceConfig } from "./types.js";
 
 export const DEFAULT_BRANDS = ["瑞幸", "库迪", "星巴克", "Tims", "Manner", "M Stand", "Peet's"];
 
+export interface ReadConfigOptions {
+  includeDisabledExternalSources?: boolean;
+}
+
 const DEFAULT_SOURCES: SourceConfig = {
   priceBook: false,
   cityBenchmark: false,
@@ -13,9 +17,9 @@ const DEFAULT_SOURCES: SourceConfig = {
   brandOfficial: true
 };
 
-export async function readConfig(configPath: string): Promise<CoffeePriceConfig> {
+export async function readConfig(configPath: string, options: ReadConfigOptions = {}): Promise<CoffeePriceConfig> {
   const raw = JSON.parse(stripJsonBom(await readFile(configPath, "utf8"))) as Partial<CoffeePriceConfig>;
-  return resolveRuntimePaths(normalizeConfig(raw), configPath);
+  return resolveRuntimePaths(normalizeConfig(raw, options), configPath);
 }
 
 function stripJsonBom(content: string): string {
@@ -52,7 +56,7 @@ function resolvePathFromRoot(root: string, path: string): string {
   return isAbsolute(path) ? path : resolve(root, path);
 }
 
-export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceConfig {
+export function normalizeConfig(raw: Partial<CoffeePriceConfig>, options: ReadConfigOptions = {}): CoffeePriceConfig {
   return {
     defaultAddressAlias: raw.defaultAddressAlias ?? raw.addresses?.[0]?.alias ?? "默认",
     addresses: raw.addresses ?? [],
@@ -69,7 +73,9 @@ export function normalizeConfig(raw: Partial<CoffeePriceConfig>): CoffeePriceCon
     brands: normalizeBrands(raw.brands),
     sources: { ...DEFAULT_SOURCES, ...(raw.sources ?? {}) },
     browserSources: raw.browserSources ?? {},
-    externalSources: raw.externalSources?.filter((source) => source.enabled !== false) ?? []
+    externalSources: options.includeDisabledExternalSources
+      ? raw.externalSources ?? []
+      : raw.externalSources?.filter((source) => source.enabled !== false) ?? []
   };
 }
 

@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
+import { loadOrderWiseEnvFile } from "./orderwise-configure.js";
+
 export type OrderWiseDoctorStatus = "pass" | "warn" | "fail";
 
 export interface OrderWiseDoctorCheck {
@@ -21,6 +23,7 @@ export interface OrderWiseDoctorReport {
 export interface OrderWiseDoctorOptions {
   endpoint: string;
   mappingPath: string;
+  envPath: string;
   json: boolean;
 }
 
@@ -40,6 +43,7 @@ export function parseOrderWiseDoctorArgs(
   const options: OrderWiseDoctorOptions = {
     endpoint: env.ORDERWISE_MCP_URL ?? DEFAULT_ENDPOINT,
     mappingPath: env.ORDERWISE_DEVICE_MAPPING_FILE ?? DEFAULT_MAPPING_PATH,
+    envPath: env.ORDERWISE_ENV_FILE ?? ".runtime/orderwise-agent/.env.local",
     json: args.includes("--json")
   };
 
@@ -53,6 +57,11 @@ export function parseOrderWiseDoctorArgs(
     }
     if (arg === "--mapping") {
       options.mappingPath = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--env-file") {
+      options.envPath = requireValue(arg, next);
       index += 1;
     }
   }
@@ -80,7 +89,8 @@ export async function runOrderWiseDoctor(
   const checks: OrderWiseDoctorCheck[] = [];
   checks.push(await checkMcpEndpoint(options.endpoint, deps));
   checks.push(await checkDeviceMapping(options.mappingPath, deps));
-  checks.push(checkModelEnv(deps.env ?? process.env));
+  const effectiveEnv = await loadOrderWiseEnvFile(options.envPath, deps.env ?? process.env, deps.readFile ?? readFile);
+  checks.push(checkModelEnv(effectiveEnv));
   return report(checks);
 }
 
