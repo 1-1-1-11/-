@@ -193,6 +193,8 @@ npm run verify:live
 
 如果确认 `.runtime/captures/calibration-report.json` 已经过期，只想检查当前 doctor、入口 URL 和 selector audit 状态，可以运行 `npm run verify:live -- --ignore-calibration-report`。这个开关只跳过上次批量校准报告，不会跳过扫码登录、真实 URL 或 selector 覆盖检查。
 
+`verify:live` 还会在报告末尾输出阶段化“下一步动作”。如果某个渠道还在使用 `example.com` 占位入口，它会先要求写入真实 URL 或运行批量校准，不会把该渠道的 selector audit 放进当前动作队列，避免对占位页面做无效捕获。
+
 ## 价格边界
 
 - 外卖价：商品价 x 数量 + 配送费 + 包装费 - 可用优惠

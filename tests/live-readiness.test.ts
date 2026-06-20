@@ -75,10 +75,16 @@ test("live readiness fails on doctor failure, placeholder URLs, and missing sele
   assert.equal(report.checks.find((check) => check.id === "doctor")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "source-meituan-url")?.status, "fail");
   assert.equal(report.checks.find((check) => check.id === "source-meituan-audit")?.status, "fail");
+  assert.deepEqual(
+    report.actions.map((action) => action.id),
+    ["weixin-login", "replace-source-url:meituan"]
+  );
+  assert.match(report.actions[0]?.command ?? "", /npm run weixin:login/);
   const text = formatLiveReadinessReport(report);
   assert.match(text, /npm run capture/);
   assert.match(text, /--url "<real-platform-url>"/);
   assert.match(text, /--save-url/);
+  assert.doesNotMatch(text, /capture-audit:meituan/);
 });
 
 test("live readiness suggests batch calibration when multiple source URLs are placeholders", () => {
@@ -111,6 +117,34 @@ test("live readiness suggests batch calibration when multiple source URLs are pl
   assert.match(text, /--url-meituan "<real-meituan-url>"/);
   assert.match(text, /--url-eleme "<real-eleme-url>"/);
   assert.match(text, /--url-brand "<real-brand-url>"/);
+  assert.equal(text.match(/npm run capture:calibrate/g)?.length, 1);
+  assert.equal(report.actions[0]?.id, "batch-calibrate");
+  assert.equal(report.actions.some((action) => action.id.startsWith("capture-audit:")), false);
+});
+
+test("live readiness actions suggest selector capture after a real source URL is configured", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    browserSources: {
+      meituan: {
+        ...baseConfig.browserSources!.meituan!,
+        entryUrl: "https://meituan.example.invalid/search?q={{drink}}"
+      }
+    }
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: {}
+  });
+
+  assert.deepEqual(
+    report.actions.map((action) => action.id),
+    ["capture-audit:meituan"]
+  );
+  assert.match(report.actions[0]?.command ?? "", /--source meituan/);
+  assert.match(report.actions[0]?.command ?? "", /--manual-ms 120000/);
 });
 
 test("live readiness includes failed batch calibration report details", () => {

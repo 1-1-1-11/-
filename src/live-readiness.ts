@@ -11,9 +11,18 @@ export interface LiveReadinessCheck {
   detail?: string;
 }
 
+export interface LiveReadinessAction {
+  id: string;
+  label: string;
+  reason: string;
+  command?: string;
+  source?: keyof SourceConfig;
+}
+
 export interface LiveReadinessReport {
   status: DoctorStatus;
   checks: LiveReadinessCheck[];
+  actions: LiveReadinessAction[];
 }
 
 export interface BuildLiveReadinessReportInput {
@@ -50,7 +59,8 @@ export function buildLiveReadinessReport(
 
   return {
     status: summarizeStatus(checks),
-    checks
+    checks,
+    actions: buildLiveReadinessActions(input)
   };
 }
 
@@ -62,9 +72,14 @@ export function formatLiveReadinessReport(report: LiveReadinessReport): string {
       lines.push(`  ${check.detail}`);
     }
   }
-  const batchCommand = buildBatchCalibrationCommand(report.checks);
-  if (batchCommand) {
-    lines.push(`下一步批量校准: ${batchCommand}`);
+  if (report.actions.length > 0) {
+    lines.push("下一步动作:");
+    for (const [index, action] of report.actions.entries()) {
+      lines.push(`${index + 1}. ${action.label}: ${action.command ?? action.reason}`);
+      if (action.command && action.reason) {
+        lines.push(`   ${action.reason}`);
+      }
+    }
   }
   return lines.join("\n");
 }
@@ -133,7 +148,7 @@ function checkSourceConfig(
 }
 
 function checkSourceUrl(source: keyof SourceConfig, entryUrl: string): LiveReadinessCheck {
-  if (/^https?:\/\/example\.com(?:[/:?#]|$)/i.test(entryUrl)) {
+  if (isPlaceholderUrl(entryUrl)) {
     return fail(
       `source-${source}-url`,
       `${source} 入口 URL`,
@@ -227,20 +242,113 @@ function captureAuditCommand(source: keyof SourceConfig): string {
   return `npm run capture -- "查公司附近冰美式" --source ${source} --manual-ms 120000`;
 }
 
-function buildBatchCalibrationCommand(checks: LiveReadinessCheck[]): string | null {
-  const placeholderSources = SOURCE_KEYS.filter((source) =>
-    checks.some(
-      (check) =>
-        check.id === `source-${source}-url` &&
-        check.status === "fail" &&
-        check.message === "仍是 example.com 占位入口 URL"
-    )
-  );
-  if (placeholderSources.length < 2) {
-    return null;
+function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveReadinessAction[] {
+  const actions: LiveReadinessAction[] = [];
+
+  for (const check of input.doctor?.checks ?? []) {
+    if (check.status !== "fail") {
+      continue;
+    }
+    if (check.id === "weixin-login") {
+      actions.push({
+        id: "weixin-login",
+        label: "完成微信扫码登录",
+        reason: check.message,
+        command: "npm run weixin:login"
+      });
+      continue;
+    }
+    actions.push({
+      id: `doctor:${check.id}`,
+      label: `修复 ${check.label}`,
+      reason: [check.message, check.detail].filter(Boolean).join(" - "),
+      command: "npm run doctor"
+    });
   }
 
-  const urlArgs = placeholderSources
+  const placeholderSources = SOURCE_KEYS.filter((source) => {
+    const spec = input.config.sources[source] ? input.config.browserSources?.[source] : undefined;
+    return spec ? isPlaceholderUrl(spec.entryUrl) : false;
+  });
+
+  for (const source of SOURCE_KEYS) {
+    if (!input.config.sources[source]) {
+      continue;
+    }
+    const spec = input.config.browserSources?.[source];
+    if (!spec) {
+      actions.push({
+        id: `scaffold-source:${source}`,
+        label: `${source} 补齐 browserSources 配置`,
+        reason: "该渠道已启用，但还没有 browserSources 配置",
+        command: "npm run config:scaffold",
+        source
+      });
+    }
+  }
+
+  if (placeholderSources.length >= 2) {
+    actions.push({
+      id: "batch-calibrate",
+      label: "批量写入真实平台 URL",
+      reason: "多个启用渠道仍是 example.com 占位 URL",
+      command: buildBatchCalibrationCommandForSources(placeholderSources)
+    });
+  } else {
+    for (const source of placeholderSources) {
+      actions.push({
+        id: `replace-source-url:${source}`,
+        label: `${source} 替换真实平台 URL`,
+        reason: "先把占位 URL 改成真实搜索或店铺入口，再做 selector audit",
+        command: captureWithSaveUrlCommand(source),
+        source
+      });
+    }
+  }
+
+  const placeholderSourceSet = new Set<keyof SourceConfig>(placeholderSources);
+  for (const source of SOURCE_KEYS) {
+    if (!input.config.sources[source] || !input.config.browserSources?.[source]) {
+      continue;
+    }
+    if (placeholderSourceSet.has(source)) {
+      continue;
+    }
+    const audit = input.audits?.[source];
+    if (isAuditReady(audit)) {
+      continue;
+    }
+    actions.push({
+      id: `capture-audit:${source}`,
+      label: `${source} 捕获 selector audit`,
+      reason: "入口 URL 已是真实网页，需要用独立 profile 生成 selector audit",
+      command: captureAuditCommand(source),
+      source
+    });
+  }
+
+  return actions;
+}
+
+function isAuditReady(audit: BrowserSourceSelectorAudit | null | undefined): boolean {
+  if (!audit) {
+    return false;
+  }
+  if (Object.values(audit.statusMatches).some((count) => count > 0)) {
+    return false;
+  }
+  if (audit.offerRows.count === 0) {
+    return false;
+  }
+  return audit.rows.every((row) => row.missingRequiredFields.length === 0);
+}
+
+function isPlaceholderUrl(entryUrl: string): boolean {
+  return /^https?:\/\/example\.com(?:[/:?#]|$)/i.test(entryUrl);
+}
+
+function buildBatchCalibrationCommandForSources(sources: readonly (keyof SourceConfig)[]): string {
+  const urlArgs = sources
     .map((source) => `${urlFlag(source)} "<real-${sourceLabel(source)}-url>"`)
     .join(" ");
   return `npm run capture:calibrate -- "查公司附近冰美式" ${urlArgs} --manual-ms 120000`;
