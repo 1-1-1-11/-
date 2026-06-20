@@ -11,7 +11,8 @@
     "plugin:build": "npm run build && openclaw plugins build --entry ./dist/openclaw-plugin.js",
     "plugin:validate": "openclaw plugins validate --root . --entry ./dist/openclaw-plugin.js",
     "coffee": "tsx src/cli.ts",
-    "capture": "tsx src/capture.ts"
+    "capture": "tsx src/capture.ts",
+    "doctor": "tsx src/doctor-cli.ts"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

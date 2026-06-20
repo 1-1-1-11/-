@@ -35,6 +35,14 @@ Copy-Item config/snapshots/meituan.example.json config/snapshots/meituan.json
 npm run coffee -- "查公司附近冰美式" --config config/coffee-price.config.json --snapshot-meituan config/snapshots/meituan.json
 ```
 
+验收前先跑本机环境诊断：
+
+```powershell
+npm run doctor
+```
+
+`doctor` 会检查 OpenClaw Gateway、`coffee-price` 配置路径、微信插件启用状态、微信扫码登录状态、私聊会话隔离和 `https://ilinkai.weixin.qq.com` HTTPS 通路。返回 `FAIL` 时，不要做微信私聊验收；先按报告里的失败项处理。
+
 ## OpenClaw 接入
 
 先构建并生成插件元数据：
@@ -122,6 +130,7 @@ npm run capture -- "查公司附近冰美式" --source meituan --html .runtime/c
 npm test
 npm run typecheck
 npm run build
+npm run doctor
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
 ```
 
