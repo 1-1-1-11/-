@@ -84,6 +84,30 @@ test("formats warnings and empty result without pretending a price exists", () =
     generatedAt: new Date("2026-06-20T10:00:00.000Z")
   } satisfies SearchResult);
 
-  assert.match(reply, /没有找到可比价格/);
+  assert.match(reply, /当前无法完成真实查价/);
+  assert.match(reply, /不会编造价格/);
   assert.match(reply, /美团登录态失效/);
+});
+
+test("keeps plain no-match wording when providers returned no blocking reason", () => {
+  const reply = formatWechatReply({
+    query: {
+      rawText: "查附近冰美式",
+      addressAlias: null,
+      drink: "冰美式",
+      normalizedDrink: "americano",
+      temperature: "冰",
+      size: null,
+      quantity: 1,
+      fulfillment: "both"
+    },
+    resolvedAddress: { alias: "公司", label: "公司", query: "深圳南山区科技园" },
+    delivery: [],
+    pickup: [],
+    warnings: [],
+    generatedAt: new Date("2026-06-20T10:00:00.000Z")
+  } satisfies SearchResult);
+
+  assert.match(reply, /没有找到可比价格/);
+  assert.doesNotMatch(reply, /当前无法完成真实查价/);
 });

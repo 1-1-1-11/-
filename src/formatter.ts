@@ -6,7 +6,12 @@ export function formatWechatReply(result: SearchResult): string {
   ];
 
   if (result.delivery.length === 0 && result.pickup.length === 0) {
-    lines.push("没有找到可比价格。");
+    if (result.warnings.length > 0) {
+      lines.push("当前无法完成真实查价，所有已启用渠道都没有返回可比价格。");
+      lines.push("不会编造价格，也不会绕过登录、人机验证或平台风控。");
+    } else {
+      lines.push("没有找到可比价格。");
+    }
   } else {
     appendSection(lines, "外卖到手价", result.delivery);
     appendSection(lines, "自取价", result.pickup);
