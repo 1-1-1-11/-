@@ -435,6 +435,28 @@ npm run luckin:official-source
 
 缺少 token 时会返回 `login_required`，缺少经纬度时会返回 `unavailable`，不会猜价格。
 
+也可以启用公开的瑞幸 MCP Proxy 路线作为第二条无浏览器实时源。它会通过 `npx -y github:wyhAcc/luckin-mcp-proxy` 启动本地 stdio MCP，再调用 `findShop` 和 `quickOrder` 拿预览价；本项目不会调用 `confirmOrder`。
+
+```json
+{
+  "id": "luckinProxyMcp",
+  "label": "瑞幸 MCP Proxy",
+  "enabled": true,
+  "type": "command",
+  "command": "node",
+  "args": ["--import", "tsx", "src/luckin-proxy-source-cli.ts"],
+  "timeoutMs": 180000
+}
+```
+
+单独验证：
+
+```powershell
+npm run luckin:proxy-source
+```
+
+边界：这条路线同样需要 `LUCKIN_MCP_TOKEN` / `LUCKIN_MCP_ORDER_TOKEN` 或本机 token 文件。它解决的是“不要抓 H5、不要处理验证码”的查价路径，不解决 token 获取本身。
+
 接入 MCP/授权接口后，推荐用刷新命令把外部源结果写入本地价格库：
 
 ```powershell

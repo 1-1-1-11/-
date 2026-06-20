@@ -6,7 +6,8 @@ const SOURCE_LABELS: Record<string, string> = {
   meituan: "美团",
   eleme: "饿了么",
   brandOfficial: "品牌官方",
-  luckinMcp: "瑞幸官方 CLI（实时自取）"
+  luckinMcp: "瑞幸官方 CLI（实时自取）",
+  luckinProxyMcp: "瑞幸 MCP Proxy（实时自取）"
 };
 
 export function formatWechatReply(result: SearchResult): string {

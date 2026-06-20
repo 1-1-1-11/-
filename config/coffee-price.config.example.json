@@ -106,6 +106,15 @@
       "timeoutMs": 120000
     },
     {
+      "id": "luckinProxyMcp",
+      "label": "瑞幸 MCP Proxy",
+      "enabled": false,
+      "type": "command",
+      "command": "node",
+      "args": ["--import", "tsx", "src/luckin-proxy-source-cli.ts"],
+      "timeoutMs": 180000
+    },
+    {
       "id": "meituanApp",
       "label": "美团 App 自动化",
       "enabled": false,

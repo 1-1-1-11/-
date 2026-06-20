@@ -32,6 +32,7 @@
     "luckin:import-token": "tsx src/luckin-token-import-cli.ts",
     "luckin:setup": "tsx src/luckin-setup-cli.ts",
     "luckin:official-source": "tsx src/luckin-official-source-cli.ts",
+    "luckin:proxy-source": "tsx src/luckin-proxy-source-cli.ts",
     "luckin:mcp-source": "tsx src/luckin-mcp-source-cli.ts",
     "verify:next": "tsx src/live-next-action.ts",
     "verify:live": "tsx src/verify-live.ts",
