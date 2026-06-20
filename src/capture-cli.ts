@@ -10,6 +10,7 @@ export interface CaptureCliOptions {
   snapshotPath: string;
   auditPath: string;
   entryUrlOverride?: string;
+  saveEntryUrl?: boolean;
   manualWaitMs?: number;
 }
 
@@ -25,6 +26,11 @@ export function parseCaptureCliArgs(args: string[]): CaptureCliOptions {
   const source = parseSource(readOption(args, "--source") ?? "meituan");
   const defaultPaths = buildDefaultCapturePaths(source);
   const manualWaitMs = readNumberOption(args, "--manual-ms");
+  const entryUrlOverride = readOption(args, "--url");
+  const saveEntryUrl = args.includes("--save-url");
+  if (saveEntryUrl && !entryUrlOverride) {
+    throw new Error("--save-url requires --url");
+  }
 
   return {
     message,
@@ -33,7 +39,8 @@ export function parseCaptureCliArgs(args: string[]): CaptureCliOptions {
     htmlPath: readOption(args, "--html") ?? defaultPaths.htmlPath,
     snapshotPath: readOption(args, "--snapshot") ?? defaultPaths.snapshotPath,
     auditPath: readOption(args, "--audit") ?? defaultPaths.auditPath,
-    entryUrlOverride: readOption(args, "--url"),
+    entryUrlOverride,
+    saveEntryUrl,
     manualWaitMs
   };
 }
@@ -73,6 +80,7 @@ function toCaptureInput(options: CaptureCliOptions): CaptureBrowserSourceInput {
     snapshotPath: options.snapshotPath,
     auditPath: options.auditPath,
     entryUrlOverride: options.entryUrlOverride,
+    saveEntryUrl: options.saveEntryUrl,
     manualWaitMs: options.manualWaitMs
   };
 }
@@ -126,6 +134,7 @@ function usage(): string {
     "  --snapshot <path>    默认 .runtime/captures/<source>.snapshot.json",
     "  --audit <path>       默认 .runtime/captures/<source>.audit.json",
     "  --url <url>          临时覆盖 browserSources.<source>.entryUrl",
+    "  --save-url           捕获成功后把 --url 写回 browserSources.<source>.entryUrl",
     "  --manual-ms <ms>     打开页面后等待人工登录/处理验证码的毫秒数"
   ].join("\n");
 }

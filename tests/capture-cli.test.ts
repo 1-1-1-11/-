@@ -36,6 +36,27 @@ test("parses capture CLI entry URL override", () => {
   assert.equal(parsed.entryUrlOverride, "https://example.com/manual");
 });
 
+test("parses capture CLI save-url option with explicit URL override", () => {
+  const parsed = parseCaptureCliArgs([
+    "查公司附近冰美式",
+    "--source",
+    "meituan",
+    "--url",
+    "https://example.com/manual",
+    "--save-url"
+  ]);
+
+  assert.equal(parsed.entryUrlOverride, "https://example.com/manual");
+  assert.equal(parsed.saveEntryUrl, true);
+});
+
+test("rejects save-url when no explicit URL override is provided", () => {
+  assert.throws(
+    () => parseCaptureCliArgs(["查公司附近冰美式", "--source", "meituan", "--save-url"]),
+    /--save-url requires --url/
+  );
+});
+
 test("rejects unsupported capture sources", () => {
   assert.throws(
     () => parseCaptureCliArgs(["查公司附近冰美式", "--source", "douyin"]),

@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 
 import { waitForOptionalSelector } from "./browser-wait.js";
 import { readConfig } from "./config.js";
+import { setBrowserSourceEntryUrl } from "./config-set-url.js";
 import { parseCoffeeCommand } from "./query-parser.js";
 import {
   auditBrowserSourceHtml,
@@ -40,6 +41,7 @@ export interface CaptureBrowserSourceInput {
   snapshotPath: string;
   auditPath?: string;
   entryUrlOverride?: string;
+  saveEntryUrl?: boolean;
   manualWaitMs?: number;
   pageLoader?: BrowserPageLoader;
 }
@@ -56,6 +58,10 @@ export interface CaptureBrowserSourceResult {
 export async function captureBrowserSource(
   input: CaptureBrowserSourceInput
 ): Promise<CaptureBrowserSourceResult> {
+  if (input.saveEntryUrl && !input.entryUrlOverride) {
+    throw new Error("saveEntryUrl requires entryUrlOverride");
+  }
+
   const config = await readConfig(input.configPath);
   const query = parseCoffeeCommand(input.message);
   const address = resolveAddress(config, query.addressAlias);
@@ -79,6 +85,10 @@ export async function captureBrowserSource(
   await writeTextFile(input.snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
   if (input.auditPath) {
     await writeTextFile(input.auditPath, `${JSON.stringify(selectorAudit, null, 2)}\n`);
+  }
+  if (input.saveEntryUrl && input.entryUrlOverride) {
+    const updated = setBrowserSourceEntryUrl(config, input.source, input.entryUrlOverride);
+    await writeTextFile(input.configPath, `${JSON.stringify(updated.config, null, 2)}\n`);
   }
 
   return {

@@ -142,3 +142,56 @@ test("captures a browser source from an explicit entry URL override", async () =
 
   assert.equal(requests[0]?.url, "https://example.com/manual-entry");
 });
+
+test("persists an explicit capture URL without replacing selectors", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-capture-save-url-"));
+  const configPath = join(dir, "config.json");
+  const htmlPath = join(dir, "captures", "meituan.html");
+  const snapshotPath = join(dir, "captures", "meituan.snapshot.json");
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      defaultAddressAlias: "公司",
+      addresses: [{ alias: "公司", label: "公司", query: "深圳南山区科技园" }],
+      browserProfilePath: "D:/profiles/coffee",
+      sources: { meituan: true, eleme: false, brandOfficial: false },
+      browserSources: {
+        meituan: {
+          source: "meituan",
+          entryUrl: "https://example.com/from-config?drink={{drink}}",
+          selectors: {
+            offerRows: "[data-live-offer]",
+            fields: {
+              brand: "[data-brand]",
+              storeName: "[data-store]",
+              drinkName: "[data-drink]",
+              fulfillment: "[data-fulfillment]",
+              itemPrice: "[data-item-price]"
+            }
+          }
+        }
+      }
+    }),
+    "utf8"
+  );
+
+  await captureBrowserSource({
+    configPath,
+    source: "meituan",
+    message: "查公司附近冰美式",
+    htmlPath,
+    snapshotPath,
+    entryUrlOverride: "https://example.com/manual-entry",
+    saveEntryUrl: true,
+    pageLoader: async (request) => ({
+      url: request.url,
+      html: ""
+    })
+  });
+
+  const saved = JSON.parse(await readFile(configPath, "utf8"));
+  assert.equal(saved.browserSources.meituan.entryUrl, "https://example.com/manual-entry");
+  assert.equal(saved.browserSources.meituan.selectors.offerRows, "[data-live-offer]");
+  assert.equal(saved.sources.meituan, true);
+});
