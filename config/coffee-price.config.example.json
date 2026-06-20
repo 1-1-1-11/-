@@ -95,6 +95,15 @@
       "command": "node",
       "args": ["--import", "tsx", "src/meituan-app-source-cli.ts", "--base-url", "http://127.0.0.1:18080"],
       "timeoutMs": 180000
+    },
+    {
+      "id": "orderwiseMcp",
+      "label": "OrderWise 多平台 MCP",
+      "enabled": false,
+      "type": "command",
+      "command": "node",
+      "args": ["--import", "tsx", "src/orderwise-mcp-source-cli.ts", "--endpoint", "http://127.0.0.1:8703/mcp"],
+      "timeoutMs": 600000
     }
   ],
   "browserSources": {

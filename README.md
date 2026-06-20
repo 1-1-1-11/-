@@ -241,6 +241,30 @@ npm run meituan:serve
 
 边界：这个路径避免的是网页 H5 登录/验证码问题；它依赖一台已登录且解锁的 Android 设备或云手机。如果美团 App 自身弹出滑块验证、起送价不足、地址未配置或页面结构改变，适配器会返回明确失败原因，不会猜价格，也不会自动付款。
 
+### OrderWise 多平台 MCP 源
+
+公开项目 [OrderWise-Agent](https://github.com/ucloud/orderwise-agent) 提供 `compare_prices` MCP 工具，面向美团、京东外卖、淘宝闪购等平台并行比价。它适合接云手机或 Sandbox 部署：外部服务负责手机视觉自动化和结构化价格提取，本项目只负责把结果转成统一咖啡榜单。
+
+本项目提供 `orderwise:mcp-source`，默认连接 `http://127.0.0.1:8703/mcp`：
+
+```powershell
+npm run orderwise:mcp-source -- --endpoint "http://127.0.0.1:8703/mcp" --brands "瑞幸,库迪,星巴克" --apps "美团,京东外卖,淘宝闪购"
+```
+
+作为 `externalSources` 运行时，它会从 stdin 读取 `{ query, address }`，对每个品牌调用一次 OrderWise `compare_prices(product_name=饮品, seller_name=品牌, apps=...)`，并把 `platforms[]` 或 `platform_results{}` 中的 `price`、`delivery_fee`、`pack_fee`、`total_fee` 映射成外卖到手价候选。示例配置已包含一个禁用的 `orderwiseMcp` 外部源。
+
+可选环境变量：
+
+```powershell
+$env:ORDERWISE_MCP_URL = "http://127.0.0.1:8703/mcp"
+$env:ORDERWISE_BRANDS = "瑞幸,库迪,星巴克"
+$env:ORDERWISE_APPS = "美团,京东外卖,淘宝闪购"
+$env:ORDERWISE_MODEL_PROVIDER = "local"
+$env:ORDERWISE_DEVICE_MAPPING = '{"app1":"device-a","app2":"device-b","app3":"device-c"}'
+```
+
+边界：OrderWise 比本机 `meituan-cli` 更接近“服务型/云手机”路线，但它仍需要已连接并登录的云手机/Android 设备，以及可用的 AutoGLM/Phone Agent 模型服务。遇到登录、验证码或接管请求时，源会返回明确原因和 `session_id`，不会编造价格，也不会提交订单。
+
 ### 瑞幸官方 MCP 源
 
 瑞幸咖啡 AI 开放平台提供官方 MCP Server。它适合作为第一条真实授权价格源：不抓美团/饿了么 H5，不处理验证码，只走用户 token 授权的官方工具。当前桥接只调用门店查询、商品搜索和订单预览，用于拿自取预估到手价；不会调用 `createOrder`，因此不会自动下单。
