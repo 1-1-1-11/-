@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { captureBrowserSource } from "./browser-capture.js";
@@ -8,6 +10,7 @@ import type { CoffeePriceConfig, SourceConfig } from "./types.js";
 export interface CaptureCalibrateCliOptions {
   message: string;
   configPath: string;
+  reportPath: string;
   manualWaitMs?: number;
   urls: Partial<Record<keyof SourceConfig, string>>;
 }
@@ -20,6 +23,7 @@ export interface CaptureCalibrationTask {
 export interface CaptureCalibrateDeps {
   readConfig?: (configPath: string) => Promise<CoffeePriceConfig>;
   capture?: (input: CaptureBrowserSourceInput) => Promise<CaptureBrowserSourceResult>;
+  writeReport?: (path: string, report: CaptureCalibrationReport) => Promise<void>;
 }
 
 export interface CaptureCalibrateCliRunResult {
@@ -27,7 +31,26 @@ export interface CaptureCalibrateCliRunResult {
   exitCode: number;
 }
 
+export interface CaptureCalibrationReport {
+  status: "pass" | "fail";
+  generatedAt: string;
+  message: string;
+  results: CaptureCalibrationReportResult[];
+}
+
+export interface CaptureCalibrationReportResult {
+  source: keyof SourceConfig;
+  status: "pass" | "fail";
+  url?: string;
+  htmlPath?: string;
+  snapshotPath?: string;
+  auditPath?: string;
+  savedEntryUrl: boolean;
+  error?: string;
+}
+
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
+const DEFAULT_REPORT_PATH = ".runtime/captures/calibration-report.json";
 const SOURCE_KEYS = ["meituan", "eleme", "brandOfficial"] as const;
 
 export function parseCaptureCalibrateCliArgs(args: string[]): CaptureCalibrateCliOptions {
@@ -39,6 +62,7 @@ export function parseCaptureCalibrateCliArgs(args: string[]): CaptureCalibrateCl
   return {
     message,
     configPath: readOption(args, "--config") ?? DEFAULT_CONFIG_PATH,
+    reportPath: readOption(args, "--report") ?? DEFAULT_REPORT_PATH,
     manualWaitMs: readNumberOption(args, "--manual-ms"),
     urls: {
       meituan: readUrlOption(args, "--url-meituan"),
@@ -106,13 +130,24 @@ export async function runCaptureCalibrateCliDetailed(
   const config = await (deps.readConfig ?? readConfig)(options.configPath);
   const tasks = buildCaptureCalibrationTasks(config, options);
   const capture = deps.capture ?? captureBrowserSource;
+  const writeReport = deps.writeReport ?? writeCalibrationReport;
   const lines = [`开始批量校准 ${tasks.length} 个渠道`];
+  const results: CaptureCalibrationReportResult[] = [];
   let failed = false;
 
   for (const task of tasks) {
     try {
       const result = await capture(task.input);
       const saved = task.input.saveEntryUrl ? "，入口 URL 已写回配置" : "";
+      results.push({
+        source: task.source,
+        status: "pass",
+        url: result.url,
+        htmlPath: result.htmlPath,
+        snapshotPath: result.snapshotPath,
+        auditPath: result.auditPath,
+        savedEntryUrl: Boolean(task.input.saveEntryUrl)
+      });
       lines.push(
         `[${task.source}] ${result.url}${saved}`,
         `  HTML: ${result.htmlPath}`,
@@ -121,10 +156,25 @@ export async function runCaptureCalibrateCliDetailed(
       );
     } catch (error) {
       failed = true;
-      lines.push(`[${task.source}] FAILED: ${formatError(error)}`);
+      const message = formatError(error);
+      results.push({
+        source: task.source,
+        status: "fail",
+        savedEntryUrl: Boolean(task.input.saveEntryUrl),
+        error: message
+      });
+      lines.push(`[${task.source}] FAILED: ${message}`);
     }
   }
 
+  const report: CaptureCalibrationReport = {
+    status: failed ? "fail" : "pass",
+    generatedAt: new Date().toISOString(),
+    message: options.message,
+    results
+  };
+  await writeReport(options.reportPath, report);
+  lines.push(`Calibration report: ${options.reportPath}`);
   lines.push(
     failed
       ? "有渠道校准失败；已继续处理其它渠道。修复失败项后重新运行 npm run verify:live"
@@ -174,6 +224,11 @@ function validateHttpUrl(value: string): string {
   return trimmed;
 }
 
+async function writeCalibrationReport(path: string, report: CaptureCalibrationReport): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+}
+
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -195,6 +250,7 @@ function usage(): string {
     'Usage: npm run capture:calibrate -- "查公司附近冰美式"',
     "Options:",
     "  --config <path>        默认 config/coffee-price.config.json",
+    "  --report <path>        默认 .runtime/captures/calibration-report.json",
     "  --manual-ms <ms>       每个渠道打开页面后等待人工登录/处理验证码的毫秒数",
     "  --url-meituan <url>    美团真实搜索或店铺入口 URL",
     "  --url-eleme <url>      饿了么真实搜索或店铺入口 URL",

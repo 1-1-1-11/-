@@ -159,7 +159,7 @@ npm run capture -- "查公司附近冰美式" --source meituan --url "https://ex
 npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://example.com/replace-with-real-meituan-page" --url-eleme "https://example.com/replace-with-real-eleme-page" --url-brand "https://example.com/replace-with-real-brand-page" --manual-ms 120000
 ```
 
-批量校准时，某个渠道失败不会阻止后续渠道继续捕获；但只要有任一渠道失败，命令最终会返回非零退出码，并在输出里标出 `[source] FAILED: ...`。
+批量校准时，某个渠道失败不会阻止后续渠道继续捕获；但只要有任一渠道失败，命令最终会返回非零退出码，并在输出里标出 `[source] FAILED: ...`。每次运行还会写出 `.runtime/captures/calibration-report.json`，里面记录每个渠道的成功/失败、HTML、snapshot、audit 路径和错误原因；需要改路径时加 `--report <path>`。
 
 捕获工具只保存页面内容、解析结果和 selector 诊断，不会保存密码，也不会绕过验证码。即使 `waitForSelector` 等不到候选行，工具也会继续保存 HTML 和 `*.audit.json`，方便判断当前是登录页、验证码页、无货页还是页面结构变了。页面结构变化时，优先用新捕获的 HTML 调整 `browserSources.<source>.selectors`。`*.audit.json` 用来定位选择器问题：先看 `statusMatches` 是否命中登录/验证码/无货，再看 `offerRows.count` 是否为 0，最后看每一行的 `missingRequiredFields`。
 

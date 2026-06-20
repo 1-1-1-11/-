@@ -61,15 +61,24 @@ test("parses batch capture calibration CLI options", () => {
     "--url-eleme",
     "https://eleme.example.invalid/coffee",
     "--url-brand",
-    "https://brand.example.invalid/coffee"
+    "https://brand.example.invalid/coffee",
+    "--report",
+    ".runtime/live/calibration.json"
   ]);
 
   assert.equal(parsed.message, "查公司附近冰美式");
   assert.equal(parsed.configPath, "config/live.json");
   assert.equal(parsed.manualWaitMs, 120000);
+  assert.equal(parsed.reportPath, ".runtime/live/calibration.json");
   assert.equal(parsed.urls.meituan, "https://meituan.example.invalid/coffee");
   assert.equal(parsed.urls.eleme, "https://eleme.example.invalid/coffee");
   assert.equal(parsed.urls.brandOfficial, "https://brand.example.invalid/coffee");
+});
+
+test("parses default calibration report path", () => {
+  const parsed = parseCaptureCalibrateCliArgs(["查公司附近冰美式"]);
+
+  assert.equal(parsed.reportPath, ".runtime/captures/calibration-report.json");
 });
 
 test("batch calibration rejects enabled placeholder URLs without an override", () => {
@@ -138,6 +147,43 @@ test("batch calibration continues after one source capture fails", async () => {
   assert.equal(result.exitCode, 1);
   assert.match(result.text, /\[meituan\] FAILED: captcha required/);
   assert.match(result.text, /\[eleme\]/);
+});
+
+test("batch calibration writes a machine-readable report", async () => {
+  let reportPath = "";
+  let report: unknown;
+
+  const result = await runCaptureCalibrateCliDetailed(
+    [
+      "查公司附近冰美式",
+      "--url-meituan",
+      "https://meituan.example.invalid/coffee",
+      "--report",
+      ".runtime/custom-report.json"
+    ],
+    {
+      readConfig: async () => config,
+      capture: async (input) => {
+        if (input.source === "eleme") {
+          throw new Error("login required");
+        }
+        return mockCaptureResult(input);
+      },
+      writeReport: async (path, value) => {
+        reportPath = path;
+        report = value;
+      }
+    }
+  );
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(reportPath, ".runtime/custom-report.json");
+  assert.equal((report as { status: string }).status, "fail");
+  assert.equal((report as { results: { source: string; status: string }[] }).results[0]?.source, "meituan");
+  assert.equal((report as { results: { source: string; status: string }[] }).results[0]?.status, "pass");
+  assert.equal((report as { results: { error?: string; status: string }[] }).results[1]?.status, "fail");
+  assert.equal((report as { results: { error?: string }[] }).results[1]?.error, "login required");
+  assert.match(result.text, /Calibration report: \.runtime\/custom-report\.json/);
 });
 
 test("package exposes batch capture calibration script", async () => {
