@@ -5,6 +5,7 @@ import { parsePlatformSnapshot } from "./platform-snapshot-provider.js";
 import type {
   AddressConfig,
   BrowserSourceSpec,
+  BrowserSourceSelectors,
   CoffeePriceConfig,
   CoffeeQuery,
   CoffeeSourceProvider,
@@ -14,6 +15,26 @@ import type {
   PlatformSnapshotOffer,
   ProviderStatus
 } from "../types.js";
+
+export interface BrowserSourceSelectorAudit {
+  source: string;
+  statusMatches: {
+    loginRequired: number;
+    captchaRequired: number;
+    noStock: number;
+  };
+  offerRows: {
+    selector: string;
+    count: number;
+  };
+  rows: BrowserSourceSelectorAuditRow[];
+}
+
+export interface BrowserSourceSelectorAuditRow {
+  index: number;
+  fieldMatches: Record<string, number>;
+  missingRequiredFields: string[];
+}
 
 export function extractPlatformSnapshotFromHtml(
   html: string,
@@ -36,6 +57,30 @@ export function extractPlatformSnapshotFromHtml(
   });
 
   return { source: spec.source, offers };
+}
+
+export function auditBrowserSourceHtml(
+  html: string,
+  spec: BrowserSourceSpec
+): BrowserSourceSelectorAudit {
+  const $ = cheerio.load(html);
+  const rows = $(spec.selectors.offerRows)
+    .map((index, element) => auditOfferRow($, $(element), spec.selectors, index))
+    .get();
+
+  return {
+    source: spec.source,
+    statusMatches: {
+      loginRequired: countSelector($, spec.selectors.loginRequired),
+      captchaRequired: countSelector($, spec.selectors.captchaRequired),
+      noStock: countSelector($, spec.selectors.noStock)
+    },
+    offerRows: {
+      selector: spec.selectors.offerRows,
+      count: rows.length
+    },
+    rows
+  };
 }
 
 export function buildEntryUrl(
@@ -122,6 +167,32 @@ function detectStatus(
     };
   }
   return null;
+}
+
+function auditOfferRow(
+  $: cheerio.CheerioAPI,
+  row: cheerio.Cheerio<AnyNode>,
+  selectors: BrowserSourceSelectors,
+  index: number
+): BrowserSourceSelectorAuditRow {
+  const fields = selectors.fields;
+  const fieldMatches = Object.fromEntries(
+    Object.entries(fields)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+      .map(([name, selector]) => [name, row.find(selector).length])
+  );
+  const missingRequiredFields = ["brand", "storeName", "drinkName", "fulfillment", "itemPrice"]
+    .filter((name) => fieldMatches[name] === 0 || !text(row, fields[name as keyof typeof fields] ?? ""));
+
+  return {
+    index,
+    fieldMatches,
+    missingRequiredFields
+  };
+}
+
+function countSelector($: cheerio.CheerioAPI, selector: string | undefined): number {
+  return selector ? $(selector).length : 0;
 }
 
 function extractOffer(

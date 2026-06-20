@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  auditBrowserSourceHtml,
   buildEntryUrl,
   extractPlatformSnapshotFromHtml
 } from "../src/providers/browser-source-provider.js";
@@ -137,4 +138,36 @@ test("fills browser entry URL templates from address and query", () => {
     url,
     "https://example.com/search?address=%E6%B7%B1%E5%9C%B3%E5%8D%97%E5%B1%B1%E5%8C%BA%E7%A7%91%E6%8A%80%E5%9B%AD&drink=%E5%86%B0%E7%BE%8E%E5%BC%8F&quantity=2"
   );
+});
+
+test("audits selector coverage for captured platform HTML", () => {
+  const audit = auditBrowserSourceHtml(
+    `
+      <main data-captcha-required>captcha banner</main>
+      <article data-offer>
+        <span data-brand>Cotti</span>
+        <span data-store>Tech Park</span>
+        <span data-drink>Iced Americano</span>
+        <span data-fulfillment>delivery</span>
+        <span data-item-price>¥9.90</span>
+      </article>
+      <article data-offer>
+        <span data-brand>Luckin</span>
+        <span data-store>Tech Park</span>
+      </article>
+    `,
+    spec
+  );
+
+  assert.equal(audit.source, "meituan");
+  assert.equal(audit.statusMatches.captchaRequired, 1);
+  assert.equal(audit.offerRows.selector, "[data-offer]");
+  assert.equal(audit.offerRows.count, 2);
+  assert.deepEqual(audit.rows[0]?.missingRequiredFields, []);
+  assert.deepEqual(audit.rows[1]?.missingRequiredFields, [
+    "drinkName",
+    "fulfillment",
+    "itemPrice"
+  ]);
+  assert.equal(audit.rows[1]?.fieldMatches.brand, 1);
 });

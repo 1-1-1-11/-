@@ -1,5 +1,5 @@
 import { captureBrowserSource } from "./browser-capture.js";
-import type { CaptureBrowserSourceInput } from "./browser-capture.js";
+import type { CaptureBrowserSourceInput, CaptureBrowserSourceResult } from "./browser-capture.js";
 import type { SourceConfig } from "./types.js";
 
 export interface CaptureCliOptions {
@@ -8,6 +8,7 @@ export interface CaptureCliOptions {
   configPath: string;
   htmlPath: string;
   snapshotPath: string;
+  auditPath: string;
   manualWaitMs?: number;
 }
 
@@ -30,6 +31,7 @@ export function parseCaptureCliArgs(args: string[]): CaptureCliOptions {
     configPath: readOption(args, "--config") ?? DEFAULT_CONFIG_PATH,
     htmlPath: readOption(args, "--html") ?? defaultPaths.htmlPath,
     snapshotPath: readOption(args, "--snapshot") ?? defaultPaths.snapshotPath,
+    auditPath: readOption(args, "--audit") ?? defaultPaths.auditPath,
     manualWaitMs
   };
 }
@@ -37,13 +39,23 @@ export function parseCaptureCliArgs(args: string[]): CaptureCliOptions {
 export async function runCaptureCli(args: string[]): Promise<string> {
   const options = parseCaptureCliArgs(args);
   const result = await captureBrowserSource(toCaptureInput(options));
+  return formatCaptureResult(options, result);
+}
+
+export function formatCaptureResult(
+  options: CaptureCliOptions,
+  result: CaptureBrowserSourceResult
+): string {
   const offerCount = result.snapshot.offers?.length ?? 0;
   return [
     `已捕获 ${options.source} 页面`,
     `页面: ${result.url}`,
     `HTML: ${result.htmlPath}`,
     `Snapshot: ${result.snapshotPath}`,
+    `Selector audit: ${result.auditPath}`,
     `候选数: ${offerCount}`,
+    `Selector rows: ${result.selectorAudit.offerRows.count}`,
+    formatMissingFields(result),
     result.snapshot.status ? `状态: ${result.snapshot.status} ${result.snapshot.message ?? ""}` : null
   ]
     .filter((line): line is string => line !== null)
@@ -57,6 +69,7 @@ function toCaptureInput(options: CaptureCliOptions): CaptureBrowserSourceInput {
     message: options.message,
     htmlPath: options.htmlPath,
     snapshotPath: options.snapshotPath,
+    auditPath: options.auditPath,
     manualWaitMs: options.manualWaitMs
   };
 }
@@ -64,10 +77,12 @@ function toCaptureInput(options: CaptureCliOptions): CaptureBrowserSourceInput {
 function buildDefaultCapturePaths(source: keyof SourceConfig): {
   htmlPath: string;
   snapshotPath: string;
+  auditPath: string;
 } {
   return {
     htmlPath: `.runtime/captures/${source}.html`,
-    snapshotPath: `.runtime/captures/${source}.snapshot.json`
+    snapshotPath: `.runtime/captures/${source}.snapshot.json`,
+    auditPath: `.runtime/captures/${source}.audit.json`
   };
 }
 
@@ -106,6 +121,19 @@ function usage(): string {
     "  --source <source>    meituan | eleme | brandOfficial",
     "  --html <path>        默认 .runtime/captures/<source>.html",
     "  --snapshot <path>    默认 .runtime/captures/<source>.snapshot.json",
+    "  --audit <path>       默认 .runtime/captures/<source>.audit.json",
     "  --manual-ms <ms>     打开页面后等待人工登录/处理验证码的毫秒数"
   ].join("\n");
+}
+
+function formatMissingFields(result: CaptureBrowserSourceResult): string {
+  const rows = result.selectorAudit.rows.filter((row) => row.missingRequiredFields.length > 0);
+  if (rows.length === 0) {
+    return "Selector missing required fields: 0";
+  }
+  const preview = rows
+    .slice(0, 3)
+    .map((row) => `#${row.index + 1} ${row.missingRequiredFields.join(",")}`)
+    .join("; ");
+  return `Selector missing required fields: ${rows.length} (${preview})`;
 }

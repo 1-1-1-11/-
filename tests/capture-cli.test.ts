@@ -19,6 +19,7 @@ test("parses capture CLI options and default output paths", () => {
   assert.equal(parsed.configPath, "config/coffee-price.config.json");
   assert.equal(parsed.htmlPath, ".runtime/captures/meituan.html");
   assert.equal(parsed.snapshotPath, ".runtime/captures/meituan.snapshot.json");
+  assert.equal(parsed.auditPath, ".runtime/captures/meituan.audit.json");
   assert.equal(parsed.manualWaitMs, 120000);
 });
 

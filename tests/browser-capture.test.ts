@@ -12,6 +12,7 @@ test("captures a configured browser source into HTML and snapshot files", async 
   const configPath = join(dir, "config.json");
   const htmlPath = join(dir, "captures", "meituan.html");
   const snapshotPath = join(dir, "captures", "meituan.snapshot.json");
+  const auditPath = join(dir, "captures", "meituan.audit.json");
   const requests: BrowserPageLoadRequest[] = [];
 
   await writeFile(
@@ -49,6 +50,7 @@ test("captures a configured browser source into HTML and snapshot files", async 
     message: "查公司附近冰美式",
     htmlPath,
     snapshotPath,
+    auditPath,
     pageLoader: async (request) => {
       requests.push(request);
       return {
@@ -80,5 +82,10 @@ test("captures a configured browser source into HTML and snapshot files", async 
   assert.equal(snapshot.source, "meituan");
   assert.equal(snapshot.offers[0].brand, "瑞幸");
   assert.equal(snapshot.offers[0].purchaseUrl, "https://example.com/order/luckin");
+  const audit = JSON.parse(await readFile(auditPath, "utf8"));
+  assert.equal(audit.offerRows.count, 1);
+  assert.deepEqual(audit.rows[0].missingRequiredFields, []);
+  assert.equal(result.auditPath, auditPath);
+  assert.equal(result.selectorAudit.offerRows.count, 1);
   assert.equal(result.snapshotPath, snapshotPath);
 });

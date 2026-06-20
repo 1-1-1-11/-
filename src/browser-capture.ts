@@ -4,9 +4,11 @@ import { dirname } from "node:path";
 import { readConfig } from "./config.js";
 import { parseCoffeeCommand } from "./query-parser.js";
 import {
+  auditBrowserSourceHtml,
   buildEntryUrl,
   extractPlatformSnapshotFromHtml
 } from "./providers/browser-source-provider.js";
+import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
 import type {
   AddressConfig,
   BrowserSourceSpec,
@@ -35,6 +37,7 @@ export interface CaptureBrowserSourceInput {
   message: string;
   htmlPath: string;
   snapshotPath: string;
+  auditPath?: string;
   manualWaitMs?: number;
   pageLoader?: BrowserPageLoader;
 }
@@ -43,7 +46,9 @@ export interface CaptureBrowserSourceResult {
   url: string;
   htmlPath: string;
   snapshotPath: string;
+  auditPath?: string;
   snapshot: PlatformSnapshot;
+  selectorAudit: BrowserSourceSelectorAudit;
 }
 
 export async function captureBrowserSource(
@@ -66,15 +71,21 @@ export async function captureBrowserSource(
     manualWaitMs: input.manualWaitMs
   });
   const snapshot = extractPlatformSnapshotFromHtml(page.html, spec, page.url);
+  const selectorAudit = auditBrowserSourceHtml(page.html, spec);
 
   await writeTextFile(input.htmlPath, page.html);
   await writeTextFile(input.snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+  if (input.auditPath) {
+    await writeTextFile(input.auditPath, `${JSON.stringify(selectorAudit, null, 2)}\n`);
+  }
 
   return {
     url: page.url,
     htmlPath: input.htmlPath,
     snapshotPath: input.snapshotPath,
-    snapshot
+    auditPath: input.auditPath,
+    snapshot,
+    selectorAudit
   };
 }
 
