@@ -184,13 +184,21 @@ openclaw gateway restart
 
 瑞幸咖啡 AI 开放平台提供官方 MCP Server。它适合作为第一条真实授权价格源：不抓美团/饿了么 H5，不处理验证码，只走用户 token 授权的官方工具。当前桥接只调用门店查询、商品搜索和订单预览，用于拿自取预估到手价；不会调用 `createOrder`，因此不会自动下单。
 
-先从瑞幸开放平台生成 token，并只保存在本机环境变量或本机文件：
+先从瑞幸开放平台生成 token，并只保存在本机环境变量或本机文件。推荐直接把开放平台复制出来的 token、Bearer 头、JSON 配置或授权命令粘给导入命令。当前环境是 Windows PowerShell 5.1，经 `npm run` 转发时用 `--token` 参数比管道 stdin 更稳定：
+
+```powershell
+npm run --silent luckin:import-token -- --token "Authorization: Bearer <你的瑞幸 MCP token>" --enable
+```
+
+导入命令会把 token 写入 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`，并在 `--enable` 时启用本地 `luckinMcp` 外部源；输出不会打印 token 内容。
+
+如果只想临时放在当前 Windows PowerShell 会话里，也可以用环境变量：
 
 ```powershell
 $env:LUCKIN_MCP_TOKEN = "你的瑞幸 MCP token"
 ```
 
-或者保存到 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`。不要把 token 写进 Git 仓库。
+不要把 token 写进 Git 仓库。
 
 启用前可以先跑专项检查：
 
