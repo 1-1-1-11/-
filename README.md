@@ -190,7 +190,21 @@ $env:LUCKIN_MCP_TOKEN = "你的瑞幸 MCP token"
 
 或者保存到 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`。不要把 token 写进 Git 仓库。
 
-然后在 `config/coffee-price.config.json` 中启用示例里的 `luckinMcp` 外部源：
+启用前可以先跑专项检查：
+
+```powershell
+npm run luckin:doctor
+```
+
+它会检查配置文件、token、地址经纬度、`externalSources.luckinMcp` 是否存在/启用，以及 MCP endpoint 是否是有效 HTTPS 地址。`FAIL` 代表还不能走瑞幸官方实时价；`WARN` 通常表示 token 和坐标已具备，但 `luckinMcp.enabled` 仍是 `false`。
+
+然后启用示例里的 `luckinMcp` 外部源：
+
+```powershell
+npm run luckin:enable
+```
+
+这条命令只把本地配置里的 `luckinMcp.enabled` 改为 `true`，不会保存 token。等价的手工配置如下：
 
 ```json
 {

@@ -17,6 +17,8 @@
     "config:set-url": "tsx src/config-set-url.ts",
     "doctor": "tsx src/doctor-cli.ts",
     "pricebook:refresh": "tsx src/pricebook-refresh-cli.ts",
+    "luckin:doctor": "tsx src/luckin-mcp-doctor-cli.ts",
+    "luckin:enable": "tsx src/luckin-mcp-enable-cli.ts",
     "luckin:mcp-source": "tsx src/luckin-mcp-source-cli.ts",
     "verify:next": "tsx src/live-next-action.ts",
     "verify:live": "tsx src/verify-live.ts",
