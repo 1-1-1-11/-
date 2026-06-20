@@ -155,7 +155,7 @@ test("live readiness suggests external source setup when all realtime sources ar
   );
   assert.match(report.actions[0]?.command ?? "", /npm run orderwise:configure/);
   assert.match(report.actions[0]?.command ?? "", /--orderwise-model-url/);
-  assert.match(report.actions[1]?.command ?? "", /luckin:login/);
+  assert.match(report.actions[1]?.command ?? "", /luckin:official-login/);
   assert.match(report.actions[2]?.command ?? "", /meituan:doctor/);
 });
 

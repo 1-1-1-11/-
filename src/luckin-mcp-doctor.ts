@@ -127,7 +127,7 @@ async function checkToken(env: NodeJS.ProcessEnv, deps: LuckinDoctorDeps): Promi
     label: "瑞幸 token",
     status: "fail",
     message: `未检测到 token；请设置 LUCKIN_MCP_TOKEN / LUCKIN_MCP_ORDER_TOKEN，或写入 ${sourceOptions.tokenPath}`,
-    detail: "LUCKIN_MCP_ORDER_TOKEN 兼容 aivo-luckin 等公开瑞幸 MCP 工具；token 只应保存在本机环境变量或用户目录文件，不要写入 Git 仓库"
+    detail: `也会读取瑞幸官方 CLI 的 ${sourceOptions.officialTokenEnvPath}；token 只应保存在本机环境变量或用户目录文件，不要写入 Git 仓库`
   };
 }
 

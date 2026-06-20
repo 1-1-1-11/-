@@ -413,7 +413,7 @@ function buildExternalSourceActions(config: CoffeePriceConfig): LiveReadinessAct
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 MCP 自取实时源",
       reason: "已有瑞幸官方 MCP 源配置，但仍未启用；需要登录瑞幸开放平台或导入 token",
-      command: "npm run luckin:login -- --open-browser --enable"
+      command: "npm run luckin:official-login"
     });
   }
   if (externalSources.some((source) => source.id === "meituanApp")) {

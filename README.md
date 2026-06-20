@@ -344,18 +344,22 @@ $env:ORDERWISE_DEVICE_MAPPING = '{"app1":"device-a","app2":"device-b","app3":"de
 
 瑞幸咖啡 AI 开放平台提供官方 MCP Server。它适合作为第一条真实授权价格源：不抓美团/饿了么 H5，不处理验证码，只走用户 token 授权的官方工具。当前桥接只调用门店查询、商品搜索和订单预览，用于拿自取预估到手价；不会调用 `createOrder`，因此不会自动下单。
 
-先从瑞幸开放平台生成 token，并只保存在本机环境变量或本机文件。推荐使用本机登录命令：它会启动本地回调服务，打开瑞幸开放平台 CLI 登录页，拿到 token 后保存到本机并启用 `luckinMcp`。
+先从瑞幸开放平台生成 token，并只保存在本机环境变量或本机文件。推荐使用官方 CLI bridge：它会下载并校验瑞幸官方 CLI，运行官方 `luckin login`，登录完成后启用 `luckinMcp` 并运行专项检查。
+
+```powershell
+npm run luckin:official-login
+```
+
+如果只想安装并校验官方 CLI，而不启动登录流程：
+
+```powershell
+npm run luckin:official-login -- --install-only
+```
+
+官方 `luckin login` 默认会把 `LUCKIN_MCP_ORDER_TOKEN` 写入 `%USERPROFILE%\.luckin\.env`，本项目会自动读取这个文件。备用的本地回调登录命令仍可使用：
 
 ```powershell
 npm run luckin:login -- --open-browser --enable
-```
-
-也可以使用瑞幸官方 CLI。官方 `luckin login` 默认会把 `LUCKIN_MCP_ORDER_TOKEN` 写入 `%USERPROFILE%\.luckin\.env`，本项目会自动读取这个文件：
-
-```powershell
-irm https://open.lkcoffee.com/window/install | iex
-luckin login
-npm run luckin:enable
 ```
 
 如果浏览器登录不可用，也可以把开放平台复制出来的 token、Bearer 头、JSON 配置或授权命令粘给导入命令。当前环境是 Windows PowerShell 5.1，经 `npm run` 转发时用 `--token` 参数比管道 stdin 更稳定：
@@ -534,7 +538,7 @@ npm run build
 npm run config:scaffold -- --config config/coffee-price.config.json --write
 npm run config:set-url -- --source meituan --url "https://example.com/replace-with-real-platform-page" --write
 npm run doctor
-npm run luckin:login -- --open-browser --enable
+npm run luckin:official-login
 npm run luckin:setup
 npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
 npm run capture:calibrate -- "查公司附近冰美式" --url-meituan "https://example.com/replace-with-real-meituan-page" --url-eleme "https://example.com/replace-with-real-eleme-page" --url-brand "https://example.com/replace-with-real-brand-page" --manual-ms 120000

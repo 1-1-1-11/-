@@ -63,6 +63,7 @@ test("Luckin doctor fails clearly when token is missing", async () => {
   assert.equal(result.report.status, "fail");
   assert.equal(result.report.checks.find((check) => check.id === "token")?.status, "fail");
   assert.match(formatLuckinDoctorReport(result.report), /LUCKIN_MCP_TOKEN/);
+  assert.match(formatLuckinDoctorReport(result.report), /\.luckin/);
 });
 
 test("Luckin doctor passes with file token, coordinates, enabled source, and https endpoint", async () => {
