@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { parseCaptureCliArgs } from "../src/capture-cli.js";
+
+test("parses capture CLI options and default output paths", () => {
+  const parsed = parseCaptureCliArgs([
+    "查公司附近冰美式",
+    "--source",
+    "meituan",
+    "--config",
+    "config/coffee-price.config.json",
+    "--manual-ms",
+    "120000"
+  ]);
+
+  assert.equal(parsed.message, "查公司附近冰美式");
+  assert.equal(parsed.source, "meituan");
+  assert.equal(parsed.configPath, "config/coffee-price.config.json");
+  assert.equal(parsed.htmlPath, ".runtime/captures/meituan.html");
+  assert.equal(parsed.snapshotPath, ".runtime/captures/meituan.snapshot.json");
+  assert.equal(parsed.manualWaitMs, 120000);
+});
+
+test("rejects unsupported capture sources", () => {
+  assert.throws(
+    () => parseCaptureCliArgs(["查公司附近冰美式", "--source", "douyin"]),
+    /不支持的渠道/
+  );
+});

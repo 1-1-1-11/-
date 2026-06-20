@@ -10,7 +10,8 @@
     "build": "tsc",
     "plugin:build": "npm run build && openclaw plugins build --entry ./dist/openclaw-plugin.js",
     "plugin:validate": "openclaw plugins validate --root . --entry ./dist/openclaw-plugin.js",
-    "coffee": "tsx src/cli.ts"
+    "coffee": "tsx src/cli.ts",
+    "capture": "tsx src/capture.ts"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

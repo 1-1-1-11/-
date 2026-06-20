@@ -82,6 +82,27 @@ openclaw gateway restart
 
 真实平台页面需要登录后用浏览器检查 DOM，再把选择器填入 `config/coffee-price.config.json`。如果页面出现验证码或登录失效，工具会返回明确原因，不会继续猜价。
 
+## 页面捕获与 selector 校准
+
+真实平台接入时，先用独立 profile 捕获页面，生成可回放的 HTML 和 snapshot：
+
+```powershell
+npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
+```
+
+这条命令会用 `browserProfilePath` 打开配置里的 `browserSources.meituan.entryUrl`，等待 120 秒给你手动登录、处理验证码或切换到正确页面，然后保存：
+
+- `.runtime/captures/meituan.html`
+- `.runtime/captures/meituan.snapshot.json`
+
+如果要指定输出位置：
+
+```powershell
+npm run capture -- "查公司附近冰美式" --source meituan --html .runtime/captures/meituan.html --snapshot config/snapshots/meituan.live.json
+```
+
+捕获工具只保存页面内容和解析结果，不会保存密码，也不会绕过验证码。页面结构变化时，优先用新捕获的 HTML 调整 `browserSources.<source>.selectors`。
+
 ## 购买页自动打开
 
 `openLowestPurchasePage` 控制是否在查价后打开最低价候选的购买页。示例配置默认开启：
@@ -100,6 +121,7 @@ openclaw gateway restart
 npm test
 npm run typecheck
 npm run build
+npm run capture -- "查公司附近冰美式" --source meituan --manual-ms 120000
 ```
 
 ## 价格边界
