@@ -473,6 +473,19 @@ function buildExternalSourceActions(
   const hasDisabledOrderWiseCli = externalSources.some((source) => source.id === "orderwiseCli" && source.enabled === false);
   const hasDisabledOrderWiseMcp = externalSources.some((source) => source.id === "orderwiseMcp" && source.enabled === false);
 
+  if (
+    luckinDoctor &&
+    luckinDoctor.status !== "pass" &&
+    externalSources.some((source) => source.id === "luckinMcp" && source.enabled !== false)
+  ) {
+    actions.push({
+      id: "configure-external-source:luckinMcp",
+      label: "配置瑞幸官方 CLI 自取实时源",
+      reason: "瑞幸实时源已启用但专项检查未通过；需要运行官方 CLI 登录并确认 token",
+      command: "npm run luckin:official-login"
+    });
+  }
+
   const orderwiseAction = buildOrderWiseCliAction(orderwiseDoctor);
   if (hasDisabledOrderWiseCli) {
     actions.push({
@@ -488,18 +501,6 @@ function buildExternalSourceActions(
       label: "配置 OrderWise 多平台 MCP 实时源",
       reason: "已有 OrderWise MCP 源配置但仍未启用；可先用已授权 ADB 设备自动映射美团，作为第一条外卖实时源",
       command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
-    });
-  }
-  if (
-    luckinDoctor &&
-    luckinDoctor.status !== "pass" &&
-    externalSources.some((source) => source.id === "luckinMcp" && source.enabled !== false)
-  ) {
-    actions.push({
-      id: "configure-external-source:luckinMcp",
-      label: "配置瑞幸官方 CLI 自取实时源",
-      reason: "瑞幸实时源已启用但专项检查未通过；需要运行官方 CLI 登录并确认 token",
-      command: "npm run luckin:official-login"
     });
   }
 

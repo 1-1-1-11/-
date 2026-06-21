@@ -240,13 +240,13 @@ test("live readiness keeps realtime alternatives visible when enabled Luckin is 
   });
 
   assert.deepEqual(report.actions.map((action) => action.id), [
-    "configure-external-source:orderwiseCli",
     "configure-external-source:luckinMcp",
+    "configure-external-source:orderwiseCli",
     "configure-external-source:meituanApp"
   ]);
-  assert.match(report.actions[0]?.command ?? "", /--auto-adb/);
-  assert.match(report.actions[0]?.command ?? "", /--source-kind cli/);
-  assert.match(report.actions[1]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[0]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[1]?.command ?? "", /--auto-adb/);
+  assert.match(report.actions[1]?.command ?? "", /--source-kind cli/);
 });
 
 test("live readiness warns when enabled Luckin source lacks token", () => {
