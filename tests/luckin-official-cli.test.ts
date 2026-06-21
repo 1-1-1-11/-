@@ -53,6 +53,15 @@ test("parses official Luckin CLI setup options", () => {
   assert.equal(parsed.json, true);
 });
 
+test("parses official Luckin CLI options after npm script terminator", () => {
+  const parsed = parseLuckinOfficialCliArgs(["--", "--install-only", "--json"]);
+
+  assert.equal(parsed.installOnly, true);
+  assert.equal(parsed.runLogin, false);
+  assert.equal(parsed.enable, false);
+  assert.equal(parsed.json, true);
+});
+
 test("selects the matching official CLI manifest file", () => {
   const selected = selectLuckinCliManifestFile(manifest, "win32", "x64");
 

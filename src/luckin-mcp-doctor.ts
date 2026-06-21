@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import { readConfig } from "./config.js";
 import { parseLuckinMcpSourceArgs, resolveLuckinToken } from "./luckin-mcp-source.js";
@@ -28,6 +30,9 @@ export interface LuckinDoctorDeps {
   env?: NodeJS.ProcessEnv;
   readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   readConfig?: (path: string) => Promise<CoffeePriceConfig>;
+  existsSync?: (path: string) => boolean;
+  platform?: NodeJS.Platform;
+  cwd?: string;
 }
 
 export function parseLuckinDoctorArgs(args: string[]): LuckinDoctorOptions {
@@ -84,6 +89,7 @@ export async function runLuckinDoctor(
   checks.push(await checkToken(deps.env ?? process.env, deps));
   checks.push(checkAddressCoordinates(config));
   checks.push(checkExternalSource(rawConfig.externalSources));
+  checks.push(checkOfficialCli(rawConfig.externalSources, deps.env ?? process.env, deps));
   checks.push(checkEndpoint(deps.env ?? process.env));
 
   return report(checks);
@@ -167,6 +173,33 @@ function checkExternalSource(externalSources: ExternalSourceConfig[] | undefined
     );
   }
   return pass("external-source", "externalSources.luckinMcp", "luckinMcp 已启用");
+}
+
+function checkOfficialCli(
+  externalSources: ExternalSourceConfig[] | undefined,
+  env: NodeJS.ProcessEnv,
+  deps: LuckinDoctorDeps
+): LuckinDoctorCheck {
+  const source = externalSources?.find((entry) => entry.id === "luckinMcp");
+  const args = source?.args ?? [];
+  const usesOfficialCli = args.some((arg) => /luckin-official-source-cli\.ts$/i.test(arg));
+  if (!usesOfficialCli) {
+    return pass("official-cli", "瑞幸官方 CLI", "当前 luckinMcp source 不依赖本地官方 CLI");
+  }
+  const cliPath = env.LUCKIN_OFFICIAL_CLI_PATH ?? env.LUCKIN_CLI_PATH ?? defaultLuckinCliPath(deps.platform ?? process.platform, deps.cwd ?? process.cwd());
+  if ((deps.existsSync ?? existsSync)(cliPath)) {
+    return pass("official-cli", "瑞幸官方 CLI", `已安装 ${cliPath}`);
+  }
+  return fail(
+    "official-cli",
+    "瑞幸官方 CLI",
+    "当前 luckinMcp source 使用官方 CLI，但未找到 luckin 可执行文件",
+    `运行 npm run luckin:official-login -- --install-only；期望路径: ${cliPath}`
+  );
+}
+
+function defaultLuckinCliPath(platform: NodeJS.Platform, cwd: string): string {
+  return resolve(cwd, ".runtime", "luckin-official-cli", "extract", platform === "win32" ? "luckin.exe" : "luckin");
 }
 
 function checkEndpoint(env: NodeJS.ProcessEnv): LuckinDoctorCheck {

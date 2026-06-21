@@ -84,6 +84,7 @@ export function parseLuckinOfficialCliArgs(
     const arg = args[index];
     const next = args[index + 1];
     switch (arg) {
+      case "--":
       case "--skip-login":
       case "--no-enable":
       case "--install-only":

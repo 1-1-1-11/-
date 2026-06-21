@@ -119,6 +119,59 @@ test("Luckin doctor accepts official Luckin CLI env file", async () => {
   assert.equal(result.report.checks.find((check) => check.id === "token")?.message, "已从 official.env 读取 token");
 });
 
+test("Luckin doctor fails when official CLI source is enabled but executable is missing", async () => {
+  const officialConfig: CoffeePriceConfig = {
+    ...config,
+    externalSources: [
+      {
+        id: "luckinMcp",
+        label: "瑞幸官方 CLI",
+        enabled: true,
+        command: "node",
+        args: ["--import", "tsx", "src/luckin-official-source-cli.ts"]
+      }
+    ]
+  };
+
+  const result = await runLuckinDoctorCli(["--config", "config.json"], {
+    env: { LUCKIN_MCP_TOKEN: "token" },
+    readFile: async () => JSON.stringify(officialConfig),
+    readConfig: async () => officialConfig,
+    existsSync: () => false,
+    platform: "win32",
+    cwd: "D:\\Desktop\\自动查价"
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.report.checks.find((check) => check.id === "official-cli")?.status, "fail");
+  assert.match(result.report.checks.find((check) => check.id === "official-cli")?.detail ?? "", /install-only/);
+});
+
+test("Luckin doctor passes official CLI check when executable exists", async () => {
+  const officialConfig: CoffeePriceConfig = {
+    ...config,
+    externalSources: [
+      {
+        id: "luckinMcp",
+        label: "瑞幸官方 CLI",
+        enabled: true,
+        command: "node",
+        args: ["--import", "tsx", "src/luckin-official-source-cli.ts"]
+      }
+    ]
+  };
+
+  const result = await runLuckinDoctorCli(["--config", "config.json"], {
+    env: { LUCKIN_MCP_TOKEN: "token" },
+    readFile: async () => JSON.stringify(officialConfig),
+    readConfig: async () => officialConfig,
+    existsSync: () => true
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.report.checks.find((check) => check.id === "official-cli")?.status, "pass");
+});
+
 test("Luckin doctor warns when source exists but is disabled", async () => {
   const disabledConfig: CoffeePriceConfig = {
     ...config,
