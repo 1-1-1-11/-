@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { delimiter } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -28,6 +29,7 @@ export interface OrderWiseDoctorOptions {
   endpoint: string;
   repoPath: string;
   pythonPath: string;
+  adbPath?: string;
   mappingPath: string;
   envPath: string;
   json: boolean;
@@ -37,7 +39,7 @@ export interface OrderWiseDoctorDeps {
   env?: NodeJS.ProcessEnv;
   readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   listTools?: (endpoint: string) => Promise<string[]>;
-  execFile?: (file: string, args: string[], options?: { cwd?: string; timeout?: number; windowsHide?: boolean }) => Promise<{ stdout: string; stderr: string }>;
+  execFile?: (file: string, args: string[], options?: { cwd?: string; timeout?: number; windowsHide?: boolean; env?: NodeJS.ProcessEnv }) => Promise<{ stdout: string; stderr: string }>;
 }
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:8703/mcp";
@@ -57,6 +59,7 @@ export function parseOrderWiseDoctorArgs(
     endpoint: env.ORDERWISE_MCP_URL ?? DEFAULT_ENDPOINT,
     repoPath: env.ORDERWISE_CLI_PATH ?? DEFAULT_REPO_PATH,
     pythonPath: env.ORDERWISE_PYTHON_PATH ?? DEFAULT_PYTHON_PATH,
+    adbPath: env.ORDERWISE_ADB_PATH ?? env.MEITUAN_ADB_PATH,
     mappingPath: env.ORDERWISE_DEVICE_MAPPING_FILE ?? DEFAULT_MAPPING_PATH,
     envPath: env.ORDERWISE_ENV_FILE ?? ".runtime/orderwise-agent/.env.local",
     json: args.includes("--json")
@@ -82,6 +85,11 @@ export function parseOrderWiseDoctorArgs(
     }
     if (arg === "--python") {
       options.pythonPath = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--adb") {
+      options.adbPath = requireValue(arg, next);
       index += 1;
       continue;
     }
@@ -119,6 +127,7 @@ export async function runOrderWiseDoctor(
   const checks: OrderWiseDoctorCheck[] = [];
   if (options.sourceKind === "cli") {
     checks.push(await checkCliPython(options.repoPath, options.pythonPath, deps));
+    checks.push(await checkAdbDevices(options, deps));
   } else {
     checks.push(await checkMcpEndpoint(options.endpoint, deps));
   }
@@ -176,6 +185,61 @@ async function checkCliPython(
       ].join("\n")
     );
   }
+}
+
+async function checkAdbDevices(
+  options: OrderWiseDoctorOptions,
+  deps: OrderWiseDoctorDeps
+): Promise<OrderWiseDoctorCheck> {
+  const env = deps.env ?? process.env;
+  const errors: string[] = [];
+  for (const adbPath of getAdbCandidates(options, env)) {
+    try {
+      const execEnv = withAdbPath(env, adbPath);
+      const version = await (deps.execFile ?? execFileText)(adbPath, ["version"], {
+        timeout: 10000,
+        windowsHide: true,
+        env: execEnv
+      });
+      const devices = await (deps.execFile ?? execFileText)(adbPath, ["devices", "-l"], {
+        timeout: 10000,
+        windowsHide: true,
+        env: execEnv
+      });
+      const authorizedDevices = parseAdbDevices(devices.stdout);
+      if (authorizedDevices.length) {
+        return pass(
+          "adb",
+          "ADB 设备",
+          `${authorizedDevices.length} 台授权设备可用`,
+          [`adb=${adbPath}`, ...authorizedDevices].join("\n")
+        );
+      }
+      return fail(
+        "adb",
+        "ADB 设备",
+        "ADB 可执行，但未检测到已授权 Android 设备",
+        [
+          `adb=${adbPath}`,
+          firstLine(version.stdout) ?? "adb version 已执行",
+          devices.stdout.trim() || "List of devices attached 为空",
+          "连接 USB 设备需开启开发者选项和 USB 调试；云手机需先 adb connect host:port"
+        ].join("\n")
+      );
+    } catch (error) {
+      errors.push(`${adbPath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return fail(
+    "adb",
+    "ADB 设备",
+    "未找到可用的 adb",
+    [
+      "可运行: winget install --id Google.PlatformTools -e --accept-source-agreements --accept-package-agreements",
+      "或设置 ORDERWISE_ADB_PATH / --adb 指向 adb.exe",
+      ...errors.slice(0, 3)
+    ].join("\n")
+  );
 }
 
 async function checkMcpEndpoint(endpoint: string, deps: OrderWiseDoctorDeps): Promise<OrderWiseDoctorCheck> {
@@ -284,18 +348,83 @@ function parseSourceKind(value: string): "mcp" | "cli" {
 async function execFileText(
   file: string,
   args: string[],
-  options: { cwd?: string; timeout?: number; windowsHide?: boolean } = {}
+  options: { cwd?: string; timeout?: number; windowsHide?: boolean; env?: NodeJS.ProcessEnv } = {}
 ): Promise<{ stdout: string; stderr: string }> {
   const result = await execFileAsync(file, args, {
     cwd: options.cwd,
     timeout: options.timeout,
     windowsHide: options.windowsHide,
+    env: options.env,
     encoding: "utf8"
   });
   return {
     stdout: String(result.stdout),
     stderr: String(result.stderr)
   };
+}
+
+function getAdbCandidates(options: OrderWiseDoctorOptions, env: NodeJS.ProcessEnv): string[] {
+  const candidates = [
+    options.adbPath,
+    env.ORDERWISE_ADB_PATH,
+    env.MEITUAN_ADB_PATH,
+    platformToolsCandidate(env.ANDROID_HOME),
+    platformToolsCandidate(env.ANDROID_SDK_ROOT),
+    wingetPlatformToolsCandidate(env),
+    "adb"
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  return [...new Set(candidates)];
+}
+
+function platformToolsCandidate(root: string | undefined): string | undefined {
+  return root ? join(root, "platform-tools", executableName("adb")) : undefined;
+}
+
+function wingetPlatformToolsCandidate(env: NodeJS.ProcessEnv): string | undefined {
+  if (process.platform !== "win32" || !env.LOCALAPPDATA) {
+    return undefined;
+  }
+  return join(
+    env.LOCALAPPDATA,
+    "Microsoft",
+    "WinGet",
+    "Packages",
+    "Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe",
+    "platform-tools",
+    executableName("adb")
+  );
+}
+
+function executableName(name: string): string {
+  return process.platform === "win32" ? `${name}.exe` : name;
+}
+
+function withAdbPath(env: NodeJS.ProcessEnv, adbPath: string): NodeJS.ProcessEnv {
+  const adbDir = hasPathSeparator(adbPath) ? dirname(resolve(adbPath)) : "";
+  if (!adbDir) {
+    return env;
+  }
+  return {
+    ...env,
+    PATH: `${adbDir}${delimiter}${env.PATH ?? ""}`,
+    Path: `${adbDir}${delimiter}${env.Path ?? env.PATH ?? ""}`
+  };
+}
+
+function parseAdbDevices(output: string): string[] {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.toLowerCase().startsWith("list of devices"))
+    .map((line) => {
+      const [serial = "", status = ""] = line.split(/\s+/);
+      return status === "device" ? serial : "";
+    })
+    .filter(Boolean);
+}
+
+function firstLine(value: string): string | undefined {
+  return value.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
 }
 
 function resolveExecutablePath(pathValue: string, repoPath: string): string {

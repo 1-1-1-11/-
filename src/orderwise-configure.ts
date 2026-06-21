@@ -538,7 +538,7 @@ async function readOptional(
 
 function upsertOrderWiseSource(
   externalSources: ExternalSourceConfig[] | undefined,
-  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "mappingPath">
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "mappingPath" | "adbPath">
 ): ExternalSourceConfig[] {
   const sourceId = options.sourceKind === "cli" ? "orderwiseCli" : "orderwiseMcp";
   const source: ExternalSourceConfig = {
@@ -566,7 +566,7 @@ function upsertOrderWiseSource(
 }
 
 function buildOrderWiseSourceArgs(
-  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "mappingPath">,
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "mappingPath" | "adbPath">,
   existingArgs?: string[]
 ): string[] {
   const args = existingArgs?.length
@@ -583,13 +583,16 @@ function buildOrderWiseSourceArgs(
   if (options.sourceMaxSteps !== undefined) {
     setFlag(args, "--max-steps", String(options.sourceMaxSteps));
   }
+  if (options.sourceKind === "cli" && options.adbPath) {
+    setFlag(args, "--adb", options.adbPath);
+  }
   return args;
 }
 
 function shouldRewriteSourceArgs(
-  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind">
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "adbPath">
 ): boolean {
-  return Boolean(options.sourceKind === "cli" || options.sourceApps?.length || options.sourceBrands?.length || options.sourceMaxSteps !== undefined);
+  return Boolean(options.sourceKind === "cli" || options.sourceApps?.length || options.sourceBrands?.length || options.sourceMaxSteps !== undefined || options.adbPath);
 }
 
 function setFlag(args: string[], flag: string, value: string): void {

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { delimiter } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { roundCurrency } from "./pricing.js";
 import type { AddressConfig, CoffeeQuery, PlatformSnapshot, PlatformSnapshotOffer } from "./types.js";
@@ -13,6 +14,7 @@ interface ExternalPriceSourceRequest {
 export interface OrderWiseCliSourceOptions {
   pythonPath: string;
   repoPath: string;
+  adbPath?: string;
   mappingPath: string;
   brands: string[];
   apps: string[];
@@ -78,6 +80,7 @@ export function parseOrderWiseCliSourceArgs(
   const options: OrderWiseCliSourceOptions = {
     repoPath,
     pythonPath: env.ORDERWISE_PYTHON_PATH ?? defaultPythonPath(repoPath),
+    adbPath: env.ORDERWISE_ADB_PATH ?? env.MEITUAN_ADB_PATH ?? wingetPlatformToolsCandidate(env),
     mappingPath: env.ORDERWISE_DEVICE_MAPPING_FILE ?? DEFAULT_MAPPING_PATH,
     brands: splitCsv(env.ORDERWISE_BRANDS) ?? DEFAULT_BRANDS,
     apps: splitCsv(env.ORDERWISE_APPS) ?? DEFAULT_APPS,
@@ -96,6 +99,10 @@ export function parseOrderWiseCliSourceArgs(
         break;
       case "--python":
         options.pythonPath = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--adb":
+        options.adbPath = requireValue(arg, next);
         index += 1;
         break;
       case "--mapping":
@@ -226,7 +233,7 @@ async function runOrderWisePython(
 
   return spawnText(options.pythonPath, ["-c", script], JSON.stringify(payload), {
     cwd: resolve(options.repoPath),
-    env: process.env
+    env: options.adbPath ? withAdbPath(process.env, options.adbPath) : process.env
   });
 }
 
@@ -347,6 +354,33 @@ function defaultPythonPath(repoPath: string): string {
   return process.platform === "win32"
     ? join(repoPath, ".venv", "Scripts", "python.exe")
     : join(repoPath, ".venv", "bin", "python");
+}
+
+function wingetPlatformToolsCandidate(env: NodeJS.ProcessEnv): string | undefined {
+  if (process.platform !== "win32" || !env.LOCALAPPDATA) {
+    return undefined;
+  }
+  return join(
+    env.LOCALAPPDATA,
+    "Microsoft",
+    "WinGet",
+    "Packages",
+    "Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe",
+    "platform-tools",
+    "adb.exe"
+  );
+}
+
+function withAdbPath(env: NodeJS.ProcessEnv, adbPath: string): NodeJS.ProcessEnv {
+  const adbDir = hasPathSeparator(adbPath) ? dirname(resolve(adbPath)) : "";
+  if (!adbDir) {
+    return env;
+  }
+  return {
+    ...env,
+    PATH: `${adbDir}${delimiter}${env.PATH ?? ""}`,
+    Path: `${adbDir}${delimiter}${env.Path ?? env.PATH ?? ""}`
+  };
 }
 
 function resolveExecutablePath(pathValue: string, repoPath: string): string {

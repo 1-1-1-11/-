@@ -296,6 +296,8 @@ test("OrderWise doctor can check the direct CLI source without MCP", async () =>
     ".runtime/ow",
     "--python",
     ".runtime/ow/.venv/Scripts/python.exe",
+    "--adb",
+    "D:\\tools\\adb.exe",
     "--mapping",
     "mapping.json"
   ]);
@@ -303,8 +305,9 @@ test("OrderWise doctor can check the direct CLI source without MCP", async () =>
   assert.equal(parsed.sourceKind, "cli");
   assert.equal(parsed.repoPath, ".runtime/ow");
   assert.equal(parsed.pythonPath, ".runtime/ow/.venv/Scripts/python.exe");
+  assert.equal(parsed.adbPath, "D:\\tools\\adb.exe");
 
-  const result = await runOrderWiseDoctorCli(["--source-kind", "cli", "--json"], {
+  const result = await runOrderWiseDoctorCli(["--source-kind", "cli", "--adb", "D:\\tools\\adb.exe", "--json"], {
     env: {
       PHONE_AGENT_BASE_URL: "http://model.example/v1",
       PHONE_AGENT_MODEL: "autoglm-phone"
@@ -313,10 +316,18 @@ test("OrderWise doctor can check the direct CLI source without MCP", async () =>
       throw new Error("MCP should not be called in CLI mode");
     },
     execFile: async (file, args, options) => {
-      assert.match(file, /python/);
-      assert.deepEqual(args, ["-c", "import orderwise_agent; print('orderwise-agent-ok')"]);
       assert.equal(options?.windowsHide, true);
-      return { stdout: "orderwise-agent-ok\n", stderr: "" };
+      if (args[0] === "-c") {
+        assert.match(file, /python/);
+        assert.deepEqual(args, ["-c", "import orderwise_agent; print('orderwise-agent-ok')"]);
+        return { stdout: "orderwise-agent-ok\n", stderr: "" };
+      }
+      assert.equal(file, "D:\\tools\\adb.exe");
+      if (args[0] === "version") {
+        return { stdout: "Android Debug Bridge version 1.0.41\n", stderr: "" };
+      }
+      assert.deepEqual(args, ["devices", "-l"]);
+      return { stdout: "List of devices attached\ndevice-a device product:phone model:A\n", stderr: "" };
     },
     readFile: async () => JSON.stringify({ app1: "10.0.0.1:5555" })
   });
@@ -324,6 +335,7 @@ test("OrderWise doctor can check the direct CLI source without MCP", async () =>
   assert.equal(result.exitCode, 0);
   assert.equal(result.report.status, "pass");
   assert.equal(result.report.checks[0]?.id, "cli");
+  assert.equal(result.report.checks[1]?.id, "adb");
   assert.match(result.text, /orderwise-agent-ok|OrderWise CLI/);
 });
 
@@ -539,6 +551,8 @@ test("OrderWise configure can enable the direct CLI source", async () => {
     "brand-a,brand-b",
     "--source-max-steps",
     "12",
+    "--adb",
+    "D:\\tools\\adb.exe",
     "--enable-source"
   ]);
 
@@ -584,7 +598,9 @@ test("OrderWise configure can enable the direct CLI source", async () => {
     "--apps",
     "meituan",
     "--max-steps",
-    "12"
+    "12",
+    "--adb",
+    "D:\\tools\\adb.exe"
   ]);
   assert.match(result.text, /orderwiseCli/);
   assert.match(result.text, /orderwise:cli-source/);

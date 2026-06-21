@@ -35,6 +35,8 @@ test("parses OrderWise CLI source options and env defaults", () => {
       ".runtime/orderwise-agent",
       "--python",
       ".runtime/orderwise-agent/.venv/Scripts/python.exe",
+      "--adb",
+      "D:\\tools\\adb.exe",
       "--mapping",
       "mapping.json",
       "--brands",
@@ -51,6 +53,7 @@ test("parses OrderWise CLI source options and env defaults", () => {
 
   assert.equal(parsed.repoPath, ".runtime/orderwise-agent");
   assert.equal(parsed.pythonPath, ".runtime/orderwise-agent/.venv/Scripts/python.exe");
+  assert.equal(parsed.adbPath, "D:\\tools\\adb.exe");
   assert.equal(parsed.mappingPath, "mapping.json");
   assert.deepEqual(parsed.brands, ["瑞幸", "库迪"]);
   assert.deepEqual(parsed.apps, ["美团"]);
