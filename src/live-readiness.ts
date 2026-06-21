@@ -531,8 +531,8 @@ function buildOrderWiseCliAction(orderwiseDoctor: OrderWiseDoctorReport | null |
   if (adbCheck) {
     const adbPath = extractDoctorDetailValue(adbCheck.detail, "adb");
     const command = adbPath
-      ? `& "${adbPath}" connect "<cloud-phone-host:port>"; npm run orderwise:doctor -- --source-kind cli --adb "${adbPath}"`
-      : "winget install --id Google.PlatformTools -e --accept-source-agreements --accept-package-agreements; npm run orderwise:doctor -- --source-kind cli";
+      ? `$env:PHONE_AGENT_API_KEY = "<phone-agent-api-key>"; npm run orderwise:configure -- --source-kind cli --connect-adb --adb "${adbPath}" --meituan "<cloud-phone-host:port>" --source-apps "美团" --orderwise-model-url "<model-base-url>" --orderwise-model-name "<model-name>" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source; npm run orderwise:doctor -- --source-kind cli --adb "${adbPath}"`
+      : `winget install --id Google.PlatformTools -e --accept-source-agreements --accept-package-agreements; $env:PHONE_AGENT_API_KEY = "<phone-agent-api-key>"; npm run orderwise:configure -- --source-kind cli --connect-adb --meituan "<cloud-phone-host:port>" --source-apps "美团" --orderwise-model-url "<model-base-url>" --orderwise-model-name "<model-name>" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source; npm run orderwise:doctor -- --source-kind cli`;
     return {
       id: "connect-orderwise-adb-device",
       label: "连接 OrderWise Android/云手机设备",

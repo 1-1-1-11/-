@@ -204,7 +204,9 @@ test("live readiness points OrderWise setup at ADB when the CLI doctor sees no d
 
   assert.equal(report.checks.find((check) => check.id === "external-source:orderwiseCli")?.status, "warn");
   assert.equal(report.actions[0]?.id, "connect-orderwise-adb-device");
-  assert.match(report.actions[0]?.command ?? "", /adb\.exe" connect "<cloud-phone-host:port>"/);
+  assert.match(report.actions[0]?.command ?? "", /orderwise:configure/);
+  assert.match(report.actions[0]?.command ?? "", /--connect-adb/);
+  assert.match(report.actions[0]?.command ?? "", /--meituan "<cloud-phone-host:port>"/);
   assert.match(report.actions[0]?.command ?? "", /orderwise:doctor -- --source-kind cli/);
 });
 

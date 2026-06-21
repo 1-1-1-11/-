@@ -606,6 +606,86 @@ test("OrderWise configure can enable the direct CLI source", async () => {
   assert.match(result.text, /orderwise:cli-source/);
 });
 
+test("OrderWise configure can connect a cloud phone before enabling the CLI source", async () => {
+  const parsed = parseOrderWiseConfigureArgs([
+    "--source-kind",
+    "cli",
+    "--connect-adb",
+    "--adb",
+    "D:\\tools\\adb.exe",
+    "--meituan",
+    "10.0.0.10:5555",
+    "--source-apps",
+    "美团",
+    "--orderwise-model-url",
+    "http://model.local/v1",
+    "--orderwise-model-name",
+    "autoglm-phone-9b",
+    "--phone-agent-api-key-env",
+    "PHONE_KEY",
+    "--enable-source"
+  ]);
+
+  assert.equal(parsed.connectAdb, true);
+  assert.deepEqual(parsed.mapping, { app1: "10.0.0.10:5555" });
+
+  const writes = new Map<string, string>();
+  const calls: string[][] = [];
+  const result = await configureOrderWise(
+    {
+      ...parsed,
+      mappingPath: "mapping.json",
+      envPath: "orderwise.env",
+      configPath: "config.json"
+    },
+    {
+      readFile: async (path) => {
+        if (path === "mapping.json" || path === "orderwise.env") {
+          return "";
+        }
+        if (path === "config.json") {
+          return JSON.stringify({ externalSources: [{ id: "orderwiseCli", enabled: false }] });
+        }
+        throw new Error(path);
+      },
+      writeFile: async (path, content) => {
+        writes.set(path, content);
+      },
+      mkdir: async () => undefined,
+      env: { PHONE_KEY: "secret" },
+      execFile: async (file, args) => {
+        assert.equal(file, "D:\\tools\\adb.exe");
+        calls.push(args);
+        if (args[0] === "version") {
+          return { stdout: "Android Debug Bridge version 1.0.41\n", stderr: "" };
+        }
+        assert.deepEqual(args, ["connect", "10.0.0.10:5555"]);
+        return { stdout: "connected to 10.0.0.10:5555\n", stderr: "" };
+      }
+    }
+  );
+
+  assert.deepEqual(calls, [["version"], ["connect", "10.0.0.10:5555"]]);
+  assert.deepEqual(JSON.parse(writes.get("mapping.json") ?? "{}"), { app1: "10.0.0.10:5555" });
+  assert.match(writes.get("orderwise.env") ?? "", /PHONE_AGENT_BASE_URL="http:\/\/model\.local\/v1"/);
+  assert.match(writes.get("orderwise.env") ?? "", /PHONE_AGENT_API_KEY_ENV="PHONE_KEY"/);
+  assert.deepEqual(result.adbConnectAttempts, ["10.0.0.10:5555: connected to 10.0.0.10:5555"]);
+  const nextConfig = JSON.parse(writes.get("config.json") ?? "{}");
+  assert.equal(nextConfig.externalSources[0].enabled, true);
+  assert.deepEqual(nextConfig.externalSources[0].args, [
+    "--import",
+    "tsx",
+    "src/orderwise-cli-source-cli.ts",
+    "--mapping",
+    "mapping.json",
+    "--apps",
+    "美团",
+    "--adb",
+    "D:\\tools\\adb.exe"
+  ]);
+  assert.match(result.text, /adb connect/);
+});
+
 test("OrderWise configure accepts official self-hosted model env names", async () => {
   const parsed = parseOrderWiseConfigureArgs([
     "--meituan",

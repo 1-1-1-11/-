@@ -18,6 +18,7 @@ export interface OrderWiseConfigureOptions {
   phoneAgentApiKeyEnv?: string;
   phoneAgentMaxSteps?: number;
   autoAdb: boolean;
+  connectAdb: boolean;
   adbPath?: string;
   sourceApps?: string[];
   sourceBrands?: string[];
@@ -35,6 +36,7 @@ export interface OrderWiseConfigureResult {
   mappingChanged: boolean;
   envChanged: boolean;
   sourceChanged: boolean;
+  adbConnectAttempts: string[];
   dryRun: boolean;
   text: string;
 }
@@ -90,6 +92,7 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
     configPath: DEFAULT_CONFIG_PATH,
     mapping: {},
     autoAdb: args.includes("--auto-adb"),
+    connectAdb: args.includes("--connect-adb"),
     sourceKind: "mcp",
     enableSource: args.includes("--enable-source"),
     dryRun: args.includes("--dry-run"),
@@ -119,6 +122,9 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
         break;
       case "--auto-adb":
         options.autoAdb = true;
+        break;
+      case "--connect-adb":
+        options.connectAdb = true;
         break;
       case "--adb":
         options.adbPath = requireValue(arg, next);
@@ -204,6 +210,7 @@ export async function configureOrderWise(
 
   const existingMappingObject = await readJsonObject(options.mappingPath, reader);
   const existingMapping = stringifyRecordValues(existingMappingObject);
+  const adbConnectAttempts = options.connectAdb && !options.dryRun ? await connectAdbTargets(options, deps, env) : [];
   const autoMapping = options.autoAdb ? await buildAutoAdbMapping(options, deps, env) : {};
   const effectiveMapping = { ...autoMapping, ...options.mapping };
   const nextMapping = buildNextMapping(existingMapping, effectiveMapping);
@@ -248,7 +255,8 @@ export async function configureOrderWise(
     envChanged,
     sourceChanged,
     dryRun: options.dryRun,
-    text: formatResult(options, { mappingChanged, envChanged, sourceChanged })
+    adbConnectAttempts,
+    text: formatResult(options, { mappingChanged, envChanged, sourceChanged, adbConnectAttempts })
   };
 }
 
@@ -278,7 +286,7 @@ export async function loadOrderWiseEnvFile(
 
 function formatResult(
   options: OrderWiseConfigureOptions,
-  changes: Pick<OrderWiseConfigureResult, "mappingChanged" | "envChanged" | "sourceChanged">
+  changes: Pick<OrderWiseConfigureResult, "mappingChanged" | "envChanged" | "sourceChanged" | "adbConnectAttempts">
 ): string {
   const action = options.dryRun ? "将更新" : "已更新";
   const unchanged = options.dryRun ? "无需更新" : "未变更";
@@ -291,6 +299,14 @@ function formatResult(
   }
   if (options.autoAdb) {
     lines.push("提示: 已尝试从 ADB 授权设备自动生成 OrderWise app 映射。");
+  }
+  if (options.connectAdb) {
+    const summary = options.dryRun
+      ? "dry-run 未执行 adb connect"
+      : changes.adbConnectAttempts.length
+      ? changes.adbConnectAttempts.join("; ")
+      : "没有发现需要 adb connect 的远程设备地址";
+    lines.push(`提示: 已处理 adb connect: ${summary}`);
   }
   if (!Object.keys(options.mapping).length && !options.autoAdb) {
     lines.push("提示: 未传入设备映射；已有映射会被保留。");
@@ -309,6 +325,57 @@ function formatResult(
     lines.push("下一步: 重启 npm run orderwise:serve，然后运行 npm run orderwise:doctor。");
   }
   return lines.join("\n");
+}
+
+async function connectAdbTargets(
+  options: OrderWiseConfigureOptions,
+  deps: OrderWiseConfigureDeps,
+  env: NodeJS.ProcessEnv
+): Promise<string[]> {
+  const targets = [...new Set(Object.values(options.mapping).filter(isRemoteAdbTarget))];
+  if (!targets.length) {
+    return [];
+  }
+  const execFile = deps.execFile ?? execFileText;
+  const adbPath = await findUsableAdb(options, deps, env);
+  const attempts: string[] = [];
+  for (const target of targets) {
+    try {
+      const result = await execFile(adbPath, ["connect", normalizeAdbTarget(target)], {
+        timeout: 15_000,
+        env: withAdbPath(env, adbPath)
+      });
+      const output = `${result.stdout}\n${result.stderr}`.trim();
+      if (!/connected|already connected/i.test(output)) {
+        throw new Error(output || "adb connect 未返回 connected");
+      }
+      attempts.push(`${target}: ${firstLine(output) ?? "connected"}`);
+    } catch (error) {
+      throw new Error(`adb connect ${target} 失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return attempts;
+}
+
+async function findUsableAdb(
+  options: OrderWiseConfigureOptions,
+  deps: OrderWiseConfigureDeps,
+  env: NodeJS.ProcessEnv
+): Promise<string> {
+  const execFile = deps.execFile ?? execFileText;
+  const errors: string[] = [];
+  for (const candidate of getAdbCandidates(options, env)) {
+    try {
+      await execFile(candidate, ["version"], {
+        timeout: 10_000,
+        env: withAdbPath(env, candidate)
+      });
+      return candidate;
+    } catch (error) {
+      errors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  throw new Error(["未找到可用 adb，无法执行 --connect-adb", ...errors.slice(0, 3)].join("\n"));
 }
 
 function buildNextMapping(
@@ -416,6 +483,18 @@ function parseAdbDevices(output: string): string[] {
       return status === "device" ? serial : "";
     })
     .filter(Boolean);
+}
+
+function isRemoteAdbTarget(value: string): boolean {
+  return !isPlaceholderDevice(value) && /^[^:\s]+:\d+$/.test(value);
+}
+
+function normalizeAdbTarget(value: string): string {
+  return value.includes(":") ? value : `${value}:5555`;
+}
+
+function firstLine(value: string): string | undefined {
+  return value.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
 }
 
 async function buildEnvEntries(
