@@ -16,6 +16,7 @@
     "config:scaffold": "tsx src/config-scaffold.ts --",
     "config:set-url": "tsx src/config-set-url.ts --",
     "doctor": "tsx src/doctor-cli.ts --",
+    "openclaw:deepseek-compat": "tsx src/openclaw-deepseek-compat-cli.ts --",
     "pricebook:refresh": "tsx src/pricebook-refresh-cli.ts --",
     "meituan:app-source": "node --import tsx src/meituan-app-source-cli.ts",
     "meituan:doctor": "tsx src/meituan-app-doctor-cli.ts --",

@@ -9,7 +9,10 @@ test("doctor report fails on mojibake config paths, unconfigured Weixin, and iLi
       coffeeConfigPath: "D:\\Desktop\\鑷姩鏌ヤ环\\config\\coffee-price.config.json",
       meituanSnapshotPath: "D:\\Desktop\\鑷姩鏌ヤ环\\config\\snapshots\\meituan.json",
       dmScope: undefined,
-      weixinEnabled: true
+      weixinEnabled: true,
+      deepseekEnabled: true,
+      memoryCoreEnabled: false,
+      pluginsAllow: ["coffee-price", "openclaw-weixin", "deepseek"]
     },
     pathExists: {},
     gatewayStatusText:
@@ -47,7 +50,10 @@ test("doctor report passes when runtime paths, Weixin login, and iLink TLS are h
       priceBookEnabled: true,
       priceBookPath,
       dmScope: "per-account-channel-peer",
-      weixinEnabled: true
+      weixinEnabled: true,
+      deepseekEnabled: true,
+      memoryCoreEnabled: false,
+      pluginsAllow: ["coffee-price", "openclaw-weixin", "deepseek"]
     },
     pathExists: {
       [coffeeConfigPath]: true,
@@ -79,7 +85,10 @@ test("doctor report treats indexed Weixin account capability output as logged in
       priceBookEnabled: true,
       priceBookPath,
       dmScope: "per-account-channel-peer",
-      weixinEnabled: true
+      weixinEnabled: true,
+      deepseekEnabled: true,
+      memoryCoreEnabled: false,
+      pluginsAllow: ["coffee-price", "openclaw-weixin", "deepseek"]
     },
     pathExists: {
       [coffeeConfigPath]: true,
@@ -96,6 +105,39 @@ test("doctor report treats indexed Weixin account capability output as logged in
 
   assert.equal(report.checks.find((check) => check.id === "weixin-login")?.status, "pass");
   assert.equal(report.status, "pass");
+});
+
+test("doctor fails when memory-core can leak extra tools into DeepSeek runs", () => {
+  const coffeeConfigPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\coffee-price.config.json";
+  const priceBookPath = "C:\\Users\\32299\\.openclaw\\coffee-price-project\\config\\pricebook.json";
+
+  const report = buildDoctorReport({
+    openclawConfig: {
+      coffeeConfigPath,
+      priceBookEnabled: true,
+      priceBookPath,
+      dmScope: "per-account-channel-peer",
+      weixinEnabled: true,
+      deepseekEnabled: true,
+      memoryCoreEnabled: true,
+      pluginsAllow: ["coffee-price", "openclaw-weixin", "deepseek"]
+    },
+    pathExists: {
+      [coffeeConfigPath]: true,
+      [priceBookPath]: true
+    },
+    gatewayStatusText:
+      "Runtime: running\nConnectivity probe: ok\nListening: 127.0.0.1:18789\n",
+    gatewayWrapperText: "@echo off\nset \"NODE_OPTIONS=--import=file:///C:/Users/32299/.openclaw/coffee-price-project/scripts/openclaw-network-preload.mjs\"\n",
+    weixinCapabilitiesText:
+      "openclaw-weixin b59af4803859-im-bot\nSupport: chatTypes=direct media blockStreaming\nActions: send, broadcast\nProbe: unavailable\n",
+    ilinkProbe: { ok: true, status: 404 }
+  });
+
+  const schemaCheck = report.checks.find((check) => check.id === "deepseek-tool-schema");
+  assert.equal(report.status, "fail");
+  assert.equal(schemaCheck?.status, "fail");
+  assert.match(schemaCheck?.detail ?? "", /openclaw:deepseek-compat/);
 });
 
 test("doctor invokes OpenClaw through Node instead of a Windows cmd shim", () => {

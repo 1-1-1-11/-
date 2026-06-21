@@ -27,6 +27,9 @@ export interface DoctorFacts {
     priceBookPath?: string;
     dmScope?: string;
     weixinEnabled?: boolean;
+    deepseekEnabled?: boolean;
+    memoryCoreEnabled?: boolean;
+    pluginsAllow?: string[];
   };
   pathExists: Record<string, boolean>;
   gatewayStatusText?: string;
@@ -59,7 +62,14 @@ interface OpenClawJson {
       "openclaw-weixin"?: {
         enabled?: boolean;
       };
+      deepseek?: {
+        enabled?: boolean;
+      };
+      "memory-core"?: {
+        enabled?: boolean;
+      };
     };
+    allow?: string[];
   };
   session?: {
     dmScope?: string;
@@ -74,6 +84,7 @@ export function buildDoctorReport(facts: DoctorFacts): DoctorReport {
     checkPriceBookPath(facts),
     checkMeituanSnapshotPath(facts),
     checkWeixinPlugin(facts),
+    checkDeepSeekToolCompatibility(facts),
     checkWeixinLogin(facts.weixinCapabilitiesText),
     checkDmScope(facts),
     checkIlinkTls(facts.ilinkProbe)
@@ -121,7 +132,10 @@ export async function collectDoctorFacts(): Promise<DoctorFacts> {
       priceBookEnabled: coffeeConfig?.sources?.priceBook === true,
       priceBookPath,
       dmScope: openclawConfig.session?.dmScope,
-      weixinEnabled: openclawConfig.plugins?.entries?.["openclaw-weixin"]?.enabled === true
+      weixinEnabled: openclawConfig.plugins?.entries?.["openclaw-weixin"]?.enabled === true,
+      deepseekEnabled: openclawConfig.plugins?.entries?.deepseek?.enabled === true,
+      memoryCoreEnabled: openclawConfig.plugins?.entries?.["memory-core"]?.enabled === true,
+      pluginsAllow: openclawConfig.plugins?.allow
     },
     pathExists,
     gatewayStatusText: gatewayStatus.stdout + gatewayStatus.stderr,
@@ -224,6 +238,46 @@ function checkWeixinPlugin(facts: DoctorFacts): DoctorCheck {
     return pass("weixin-plugin", "微信插件开关", "openclaw-weixin 插件已启用");
   }
   return fail("weixin-plugin", "微信插件开关", "openclaw-weixin 插件未启用");
+}
+
+function checkDeepSeekToolCompatibility(facts: DoctorFacts): DoctorCheck {
+  const config = facts.openclawConfig;
+  const allow = config?.pluginsAllow ?? [];
+  const missing = ["coffee-price", "openclaw-weixin", "deepseek"].filter((id) => !allow.includes(id));
+  const extra = allow.filter((id) => !["coffee-price", "openclaw-weixin", "deepseek"].includes(id));
+  if (!config?.deepseekEnabled) {
+    return fail(
+      "deepseek-tool-schema",
+      "DeepSeek tool schema",
+      "deepseek provider plugin is not enabled",
+      "Run npm run openclaw:deepseek-compat, then npx openclaw gateway restart"
+    );
+  }
+  if (config.memoryCoreEnabled) {
+    return fail(
+      "deepseek-tool-schema",
+      "DeepSeek tool schema",
+      "memory-core is enabled and can expose non-coffee tools to DeepSeek",
+      "Run npm run openclaw:deepseek-compat, then npx openclaw gateway restart"
+    );
+  }
+  if (allow.length === 0 || missing.length > 0) {
+    return fail(
+      "deepseek-tool-schema",
+      "DeepSeek tool schema",
+      "plugins.allow is missing the minimal coffee-price allowlist",
+      `missing=${missing.join(",") || "(none)"}; run npm run openclaw:deepseek-compat`
+    );
+  }
+  if (extra.length > 0) {
+    return warn(
+      "deepseek-tool-schema",
+      "DeepSeek tool schema",
+      "plugins.allow has extra plugins; keep only trusted tools for this WeChat bot",
+      `extra=${extra.join(",")}; run npm run openclaw:deepseek-compat to reset`
+    );
+  }
+  return pass("deepseek-tool-schema", "DeepSeek tool schema", "DeepSeek sees only the coffee bot tool set");
 }
 
 function checkWeixinLogin(text: string | undefined): DoctorCheck {

@@ -77,6 +77,16 @@ npm run doctor
 
 `doctor` 会检查 OpenClaw Gateway、`coffee-price` 配置路径、微信插件启用状态、微信扫码登录状态、私聊会话隔离和 `https://ilinkai.weixin.qq.com` HTTPS 通路。返回 `FAIL` 时，不要做微信私聊验收；先按报告里的失败项处理。
 
+如果微信私聊触发后出现 DeepSeek/OpenClaw 的 `Invalid 'tools[...].function.name'`，先运行兼容修复，把本项目的 OpenClaw Gateway 收窄到咖啡助手、微信 channel 和 DeepSeek provider 三个插件：
+
+```powershell
+npm run openclaw:deepseek-compat
+npx openclaw gateway restart
+npm run doctor
+```
+
+这条命令会显式禁用 `memory-core` 并设置 `plugins.allow=["coffee-price","openclaw-weixin","deepseek"]`；它不保存模型 API key，也不会修改微信登录态。
+
 ## OpenClaw 接入
 
 先构建并生成插件元数据：
