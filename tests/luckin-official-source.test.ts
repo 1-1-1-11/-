@@ -65,6 +65,8 @@ test("returns login_required when no official Luckin token is available", async 
 
   assert.equal(snapshot.source, "luckinMcp");
   assert.equal(snapshot.status, "login_required");
+  assert.match(snapshot.message ?? "", /微信私聊/);
+  assert.match(snapshot.message ?? "", /绑定瑞幸 token/);
   assert.match(snapshot.message ?? "", /official-login/);
 });
 
@@ -82,6 +84,8 @@ test("maps official Luckin CLI auth errors to login_required", async () => {
   );
 
   assert.equal(snapshot.status, "login_required");
+  assert.match(snapshot.message ?? "", /微信私聊/);
+  assert.match(snapshot.message ?? "", /绑定瑞幸 token/);
   assert.match(snapshot.message ?? "", /重新运行 npm run luckin:official-login/);
 });
 

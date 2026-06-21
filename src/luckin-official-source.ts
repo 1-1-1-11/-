@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
+import { expiredLuckinTokenMessage, missingLuckinTokenMessage } from "./luckin-token-guidance.js";
 import { parseLuckinMcpSourceArgs, resolveLuckinToken, type LuckinMcpSourceOptions } from "./luckin-mcp-source.js";
 import { roundCurrency } from "./pricing.js";
 import type { AddressConfig, CoffeeQuery, PlatformSnapshot, PlatformSnapshotOffer } from "./types.js";
@@ -129,10 +130,7 @@ export async function buildLuckinOfficialSnapshot(
 ): Promise<PlatformSnapshot> {
   const resolvedToken = await resolveLuckinToken(options, deps);
   if (!resolvedToken?.token) {
-    return statusSnapshot(
-      "login_required",
-      "缺少 LUCKIN_MCP_ORDER_TOKEN；请运行 npm run luckin:official-login 完成官方 CLI 登录。"
-    );
+    return statusSnapshot("login_required", missingLuckinTokenMessage("瑞幸官方 CLI"));
   }
 
   const longitude = options.longitude ?? request.address.longitude;
@@ -238,7 +236,7 @@ function defaultLuckinCliPath(platform: NodeJS.Platform, cwd: string): string {
 function commandStatus(result: OfficialCliCommandResult, label: string): PlatformSnapshot | null {
   const output = `${result.stdout}\n${result.stderr}`.trim();
   if (isAuthError(output)) {
-    return statusSnapshot("login_required", `${label}：登录态失效或 token 无效，请重新运行 npm run luckin:official-login。`);
+    return statusSnapshot("login_required", expiredLuckinTokenMessage(label));
   }
   if (result.exitCode !== 0) {
     return statusSnapshot("unavailable", `${label}：${output.slice(0, 300) || `退出码 ${result.exitCode}`}`);

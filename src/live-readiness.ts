@@ -1,6 +1,7 @@
 import type { DoctorReport, DoctorStatus } from "./doctor.js";
 import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
+import { LUCKIN_WECHAT_TOKEN_BIND_COMMAND } from "./luckin-token-guidance.js";
 import type { LuckinDoctorReport } from "./luckin-mcp-doctor.js";
 import type { OrderWiseDoctorReport } from "./orderwise-mcp-doctor.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
@@ -481,7 +482,7 @@ function buildExternalSourceActions(
     actions.push({
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 CLI 自取实时源",
-      reason: "瑞幸实时源已启用但专项检查未通过；先运行官方 CLI 登录并确认 token；如果网页授权没有自动落盘，复制开放平台 token 后运行 npm run luckin:official-login -- --from-clipboard",
+      reason: `瑞幸实时源已启用但专项检查未通过；可在微信私聊发送“${LUCKIN_WECHAT_TOKEN_BIND_COMMAND}”，或运行官方 CLI 登录并确认 token；如果网页授权没有自动落盘，复制开放平台 token 后运行 npm run luckin:official-login -- --from-clipboard`,
       command: "npm run luckin:official-login"
     });
   }
@@ -512,7 +513,7 @@ function buildExternalSourceActions(
     actions.push({
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 CLI 自取实时源",
-      reason: "已有瑞幸实时源配置，但仍未启用；需要运行官方 CLI 登录并启用 source；如果网页授权没有自动落盘，复制开放平台 token 后运行 npm run luckin:official-login -- --from-clipboard",
+      reason: `已有瑞幸实时源配置，但仍未启用；可在微信私聊发送“${LUCKIN_WECHAT_TOKEN_BIND_COMMAND}”，或运行 npm run luckin:official-login 登录并启用 source；如果网页授权没有自动落盘，复制开放平台 token 后运行 npm run luckin:official-login -- --from-clipboard`,
       command: "npm run luckin:official-login"
     });
   }

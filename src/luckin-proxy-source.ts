@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+import { expiredLuckinTokenMessage, missingLuckinTokenMessage } from "./luckin-token-guidance.js";
 import { parseLuckinMcpSourceArgs, resolveLuckinToken, type LuckinMcpSourceOptions } from "./luckin-mcp-source.js";
 import { roundCurrency } from "./pricing.js";
 import type { AddressConfig, CoffeeQuery, PlatformSnapshot, PlatformSnapshotOffer } from "./types.js";
@@ -116,10 +117,7 @@ export async function buildLuckinProxySnapshot(
 ): Promise<PlatformSnapshot> {
   const resolvedToken = await resolveLuckinToken(options, deps);
   if (!resolvedToken?.token) {
-    return statusSnapshot(
-      "login_required",
-      "缺少 LUCKIN_MCP_TOKEN；请先获取瑞幸 MCP token，或运行 npm run luckin:official-login 写入本机 token。"
-    );
+    return statusSnapshot("login_required", missingLuckinTokenMessage("瑞幸 MCP Proxy"));
   }
 
   const longitude = options.longitude ?? request.address.longitude;
@@ -178,7 +176,7 @@ export async function buildLuckinProxySnapshot(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (AUTH_ERROR_PATTERN.test(message)) {
-      return statusSnapshot("login_required", `瑞幸 MCP Proxy 登录态失效或 token 无效：${message}`);
+      return statusSnapshot("login_required", `${expiredLuckinTokenMessage("瑞幸 MCP Proxy")} 原始错误：${message}`);
     }
     return statusSnapshot("unavailable", `瑞幸 MCP Proxy 调用失败：${message}`);
   } finally {

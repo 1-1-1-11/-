@@ -160,6 +160,8 @@ test("live readiness suggests external source setup when all realtime sources ar
   assert.match(report.actions[0]?.command ?? "", /--source-apps "美团"/);
   assert.match(report.actions[0]?.command ?? "", /--orderwise-model-url/);
   assert.match(report.actions[1]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[1]?.reason ?? "", /微信私聊/);
+  assert.match(report.actions[1]?.reason ?? "", /绑定瑞幸 token/);
   assert.match(report.actions[2]?.command ?? "", /meituan:doctor/);
 });
 
@@ -245,6 +247,8 @@ test("live readiness keeps realtime alternatives visible when enabled Luckin is 
     "configure-external-source:meituanApp"
   ]);
   assert.match(report.actions[0]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[0]?.reason ?? "", /微信私聊/);
+  assert.match(report.actions[0]?.reason ?? "", /绑定瑞幸 token/);
   assert.match(report.actions[0]?.reason ?? "", /--from-clipboard/);
   assert.match(report.actions[1]?.command ?? "", /--auto-adb/);
   assert.match(report.actions[1]?.command ?? "", /--source-kind cli/);
@@ -280,6 +284,8 @@ test("live readiness warns when enabled Luckin source lacks token", () => {
   assert.equal(report.checks.find((check) => check.id === "external-source:luckinMcp")?.status, "warn");
   assert.deepEqual(report.actions.map((action) => action.id), ["configure-external-source:luckinMcp"]);
   assert.match(report.actions[0]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[0]?.reason ?? "", /微信私聊/);
+  assert.match(report.actions[0]?.reason ?? "", /绑定瑞幸 token/);
   assert.match(report.actions[0]?.reason ?? "", /--from-clipboard/);
 });
 

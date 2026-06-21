@@ -10,6 +10,10 @@
         "type": "string",
         "description": "Local coffee price config path. Defaults to config/coffee-price.config.json."
       },
+      "luckinTokenPath": {
+        "type": "string",
+        "description": "Local path for the user's Luckin MCP token. Defaults to the user profile token file."
+      },
       "snapshotPaths": {
         "type": "object",
         "properties": {
@@ -34,7 +38,8 @@
   },
   "contracts": {
     "tools": [
-      "coffee_price_search"
+      "coffee_price_search",
+      "luckin_token_bind"
     ]
   }
 }

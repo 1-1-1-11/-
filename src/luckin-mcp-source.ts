@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
+import { missingLuckinTokenMessage } from "./luckin-token-guidance.js";
 import { roundCurrency } from "./pricing.js";
 import { extractLuckinToken } from "./luckin-token-import.js";
 import type {
@@ -157,7 +158,7 @@ export async function buildLuckinMcpSnapshot(
   const resolvedToken = await resolveLuckinToken(options, deps);
   const token = resolvedToken?.token;
   if (!token) {
-    return statusSnapshot("login_required", "缺少 LUCKIN_MCP_TOKEN；请在瑞幸 AI 开放平台生成 token 后设置环境变量或 ~/.my-coffee/LUCKIN_MCP_TOKEN");
+    return statusSnapshot("login_required", missingLuckinTokenMessage("瑞幸官方 MCP"));
   }
 
   const longitude = options.longitude ?? request.address.longitude;

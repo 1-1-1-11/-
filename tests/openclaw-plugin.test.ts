@@ -13,6 +13,19 @@ test("declares the coffee_price_search OpenClaw tool", () => {
   assert.ok(metadata?.tools.some((tool) => tool.name === "coffee_price_search"));
 });
 
+test("declares the Luckin token binding tool", () => {
+  const metadata = getToolPluginMetadata(plugin);
+  const tool = metadata?.tools.find((entry) => entry.name === "luckin_token_bind");
+
+  assert.ok(tool);
+  assert.match(tool?.description ?? "", /bind/i);
+  assert.match(tool?.description ?? "", /even if the message appears to omit the token/i);
+  assert.match(tool?.description ?? "", /official Luckin MCP\/Open Platform tokens/i);
+  assert.match(tool?.description ?? "", /do not suggest packet capture/i);
+  assert.match(tool?.description ?? "", /never reveal/i);
+  assert.match(tool?.description ?? "", /never place an order/i);
+});
+
 test("forbids order placement offers in the OpenClaw tool contract", () => {
   const metadata = getToolPluginMetadata(plugin);
   const tool = metadata?.tools.find((entry) => entry.name === "coffee_price_search");

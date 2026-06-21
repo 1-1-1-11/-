@@ -63,6 +63,9 @@ test("returns login_required when no Luckin proxy token is available", async () 
 
   assert.equal(snapshot.source, "luckinProxyMcp");
   assert.equal(snapshot.status, "login_required");
+  assert.match(snapshot.message ?? "", /微信私聊/);
+  assert.match(snapshot.message ?? "", /绑定瑞幸 token/);
+  assert.match(snapshot.message ?? "", /luckin:official-login/);
 });
 
 test("maps Luckin MCP proxy findShop and quickOrder into a pickup snapshot", async () => {

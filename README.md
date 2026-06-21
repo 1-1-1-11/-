@@ -13,6 +13,7 @@
 - 城市参考价 provider：无 token 时也能给出星巴克/瑞幸/库迪的非实时横向参考
 - 外部源 provider：`externalSources` 可以桥接授权查价 API、MCP/CLI 工具、HTTP 服务或自有券源脚本
 - 瑞幸官方 CLI 价格源：`luckin:official-login` 可安装官方 CLI、登录并启用实时自取价源
+- 瑞幸 token 私聊绑定：微信里发送 `绑定瑞幸 token Authorization: Bearer <token>`，OpenClaw 会导入本机 token 并启用瑞幸实时价源
 - 统一渠道快照适配器：美团/饿了么/品牌官方页面提取结果先归一成 snapshot，再排序
 - 浏览器页面提取器：用独立 profile 打开页面，按 CSS 选择器识别登录/验证码/无货，并提取价格候选
 - 最低价购买页打开：配置开启后会在本机默认浏览器打开最低价候选的 `http/https` 购买页
@@ -429,6 +430,20 @@ $env:ORDERWISE_DEVICE_MAPPING = '{"app1":"device-a","app2":"device-b","app3":"de
 ```powershell
 npm run luckin:official-login
 ```
+
+如果你已经从瑞幸开放平台复制到 MCP token，也可以直接在微信私聊里绑定；OpenClaw 会把 token 写入本机 `%USERPROFILE%\.my-coffee\LUCKIN_MCP_TOKEN`，启用 `luckinMcp`，回复时不会回显 token：
+
+```text
+绑定瑞幸 token Authorization: Bearer <你的瑞幸 MCP token>
+```
+
+绑定后继续在微信私聊发送：
+
+```text
+查公司附近冰美式
+```
+
+不要把 token 发到群聊。因为 token 是通过微信消息发给本机 OpenClaw 的，本地 OpenClaw/微信消息记录里仍可能留下原始输入；工具只保证不会在回复和仓库文件里回显 token。
 
 登录流程默认最多等待 3 分钟；如果官方 CLI 打开了网页但没有回写 token，命令会退出并提示改用剪贴板导入。需要更长等待时间时：
 
