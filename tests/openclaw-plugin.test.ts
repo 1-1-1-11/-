@@ -21,3 +21,12 @@ test("forbids order placement offers in the OpenClaw tool contract", () => {
   assert.match(tool?.description ?? "", /never offer to place an order/i);
   assert.match(tool?.description ?? "", /never ask whether the user wants you to place an order/i);
 });
+
+test("requires safety boundary sections to survive model formatting", () => {
+  const metadata = getToolPluginMetadata(plugin);
+  const tool = metadata?.tools.find((entry) => entry.name === "coffee_price_search");
+
+  assert.match(tool?.description ?? "", /需要处理/);
+  assert.match(tool?.description ?? "", /未打开购买页/);
+  assert.match(tool?.description ?? "", /must keep/i);
+});

@@ -1,3 +1,4 @@
+import { isReferencePriceSource } from "./source-classification.js";
 import type { Discount, PricedOffer, SearchResult } from "./types.js";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -14,6 +15,7 @@ export function formatWechatReply(result: SearchResult): string {
   const lines: string[] = [
     `咖啡查价：${result.query.drink} x${result.query.quantity} @ ${result.resolvedAddress.label}`
   ];
+  const allOffers = [...result.delivery, ...result.pickup];
 
   if (result.delivery.length === 0 && result.pickup.length === 0) {
     if (result.warnings.length > 0) {
@@ -23,6 +25,9 @@ export function formatWechatReply(result: SearchResult): string {
       lines.push("没有找到可比价格。");
     }
   } else {
+    if (allOffers.every((offer) => isReferencePriceSource(offer.source))) {
+      lines.push("数据状态：当前结果仅来自参考源，不是实时可下单价格。");
+    }
     appendSection(lines, "外卖到手价", result.delivery);
     appendSection(lines, "自取价", result.pickup);
   }
@@ -51,9 +56,13 @@ function appendSection(lines: string[], title: string, offers: PricedOffer[]): v
       lines.push(`   距离/时间: ${[offer.distanceText, offer.etaText].filter(Boolean).join(" / ")}`);
     }
     if (offer.purchaseUrl) {
-      lines.push(`   购买页: ${offer.purchaseUrl}`);
+      lines.push(`   ${formatPurchaseUrlLabel(offer.source)}: ${offer.purchaseUrl}`);
     }
   });
+}
+
+function formatPurchaseUrlLabel(source: string): string {
+  return isReferencePriceSource(source) ? "参考页" : "购买页";
 }
 
 function formatSource(source: string): string {

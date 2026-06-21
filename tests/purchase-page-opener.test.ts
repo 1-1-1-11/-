@@ -117,3 +117,50 @@ test("skips unsafe purchase URL schemes and opens the next safe candidate", asyn
   assert.deepEqual(opened, ["https://example.com/tims"]);
   assert.equal(result.status, "opened");
 });
+
+test("does not open reference-source purchase URLs as order pages", async () => {
+  const opened: string[] = [];
+  const result = await openLowestPurchasePage(
+    makeResult({
+      pickup: [
+        {
+          source: "priceBook",
+          brand: "库迪",
+          storeName: "库迪 科技园店",
+          drinkName: "冰美式",
+          normalizedDrink: "americano",
+          size: "中杯",
+          fulfillment: "pickup",
+          itemPrice: 8.9,
+          quantity: 1,
+          discounts: [],
+          totalPrice: 8.9,
+          purchaseUrl: "https://www.cotticoffee.com/"
+        },
+        {
+          source: "cityBenchmark",
+          brand: "瑞幸",
+          storeName: "深圳参考价（非实时）",
+          drinkName: "冰美式",
+          normalizedDrink: "americano",
+          size: "中杯",
+          fulfillment: "pickup",
+          itemPrice: 18,
+          quantity: 1,
+          discounts: [],
+          totalPrice: 18,
+          purchaseUrl: "https://clawhub.ai/realank/coffee-prices"
+        }
+      ]
+    }),
+    {
+      open: async (url) => {
+        opened.push(url);
+      }
+    }
+  );
+
+  assert.deepEqual(opened, []);
+  assert.equal(result.status, "no_purchase_url");
+  assert.match(result.message, /参考源/);
+});

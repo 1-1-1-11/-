@@ -91,6 +91,86 @@ test("formats warnings and empty result without pretending a price exists", () =
   assert.match(reply, /美团登录态失效/);
 });
 
+test("labels reference source URLs as reference pages instead of purchase pages", () => {
+  const reply = formatWechatReply({
+    query: {
+      rawText: "查附近冰美式",
+      addressAlias: null,
+      drink: "冰美式",
+      normalizedDrink: "americano",
+      temperature: "冰",
+      size: null,
+      quantity: 1,
+      fulfillment: "both"
+    },
+    resolvedAddress: { alias: "公司", label: "公司", query: "深圳南山区科技园" },
+    delivery: [],
+    pickup: [
+      {
+        source: "priceBook",
+        brand: "库迪",
+        storeName: "库迪 参考价",
+        drinkName: "冰美式",
+        normalizedDrink: "americano",
+        size: "中杯",
+        fulfillment: "pickup",
+        itemPrice: 8.9,
+        quantity: 1,
+        discounts: [],
+        totalPrice: 8.9,
+        purchaseUrl: "https://www.cotticoffee.com/"
+      }
+    ],
+    warnings: [],
+    generatedAt: new Date("2026-06-20T10:00:00.000Z")
+  } satisfies SearchResult);
+
+  assert.match(reply, /参考页: https:\/\/www\.cotticoffee\.com\//);
+  assert.doesNotMatch(reply, /购买页: https:\/\/www\.cotticoffee\.com\//);
+});
+
+test("marks reference-only rankings as non-realtime data near the top", () => {
+  const reply = formatWechatReply({
+    query: {
+      rawText: "查附近冰美式",
+      addressAlias: null,
+      drink: "冰美式",
+      normalizedDrink: "americano",
+      temperature: "冰",
+      size: null,
+      quantity: 1,
+      fulfillment: "both"
+    },
+    resolvedAddress: { alias: "公司", label: "公司", query: "深圳南山区科技园" },
+    delivery: [
+      {
+        source: "priceBook",
+        brand: "库迪",
+        storeName: "库迪 外卖参考价",
+        drinkName: "冰美式",
+        normalizedDrink: "americano",
+        size: "中杯",
+        fulfillment: "delivery",
+        itemPrice: 10.9,
+        quantity: 1,
+        deliveryFee: 2,
+        packagingFee: 1,
+        discounts: [],
+        totalPrice: 13.9
+      }
+    ],
+    pickup: [],
+    warnings: [],
+    generatedAt: new Date("2026-06-20T10:00:00.000Z")
+  } satisfies SearchResult);
+
+  assert.match(reply, /数据状态：当前结果仅来自参考源，不是实时可下单价格。/);
+  assert.ok(
+    reply.indexOf("数据状态：") < reply.indexOf("外卖到手价 Top 1"),
+    "data status should appear before rankings"
+  );
+});
+
 test("keeps plain no-match wording when providers returned no blocking reason", () => {
   const reply = formatWechatReply({
     query: {

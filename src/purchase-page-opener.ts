@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { platform } from "node:os";
 
+import { isReferencePriceSource } from "./source-classification.js";
 import type { PricedOffer, SearchResult } from "./types.js";
 
 export interface PurchasePageOpener {
@@ -20,7 +21,9 @@ export type PurchasePageOpenResult =
 export function selectLowestPurchasePage(result: SearchResult): PurchasePageSelection | null {
   const candidates = [...result.delivery, ...result.pickup]
     .map((offer) => ({ offer, url: normalizePurchaseUrl(offer.purchaseUrl) }))
-    .filter((candidate): candidate is PurchasePageSelection => candidate.url !== null)
+    .filter((candidate): candidate is PurchasePageSelection => (
+      candidate.url !== null && isActionablePurchaseSource(candidate.offer)
+    ))
     .sort((left, right) => left.offer.totalPrice - right.offer.totalPrice);
 
   return candidates[0] ?? null;
@@ -34,7 +37,9 @@ export async function openLowestPurchasePage(
   if (!selection) {
     return {
       status: "no_purchase_url",
-      message: "没有可打开的 http/https 购买链接"
+      message: hasReferencePurchaseUrl(result)
+        ? "当前只有本地价格库或城市参考价等参考源链接，不自动当作实时可下单购买页。请配置瑞幸/美团/OrderWise 等实时源后再打开。"
+        : "没有可打开的 http/https 购买链接"
     };
   }
 
@@ -66,6 +71,16 @@ function normalizePurchaseUrl(value: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+function isActionablePurchaseSource(offer: PricedOffer): boolean {
+  return !isReferencePriceSource(offer.source);
+}
+
+function hasReferencePurchaseUrl(result: SearchResult): boolean {
+  return [...result.delivery, ...result.pickup].some((offer) => (
+    !isActionablePurchaseSource(offer) && normalizePurchaseUrl(offer.purchaseUrl) !== null
+  ));
 }
 
 function getOpenCommand(url: string): { file: string; args: string[] } {

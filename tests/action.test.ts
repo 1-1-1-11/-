@@ -161,6 +161,62 @@ test("runs from the local price book without opening browser sources", async () 
   assert.match(reply, /￥9\.90/);
 });
 
+test("does not auto-open reference price book pages as live order links", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "coffee-action-pricebook-open-"));
+  const configPath = join(dir, "config.json");
+  const priceBookPath = join(dir, "pricebook.json");
+  const opened: string[] = [];
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      defaultAddressAlias: "公司",
+      addresses: [{ alias: "公司", label: "公司", query: "深圳南山区科技园" }],
+      browserProfilePath: "D:/profiles/coffee",
+      openLowestPurchasePage: true,
+      priceBookPath,
+      brands: [{ name: "库迪", enabled: true }],
+      sources: { priceBook: true, meituan: false, eleme: false, brandOfficial: false }
+    }),
+    "utf8"
+  );
+  await writeFile(
+    priceBookPath,
+    JSON.stringify({
+      source: "priceBook",
+      offers: [
+        {
+          addressAliases: ["公司"],
+          brand: "库迪",
+          storeName: "库迪 科技园店",
+          drinkName: "冰美式",
+          normalizedDrink: "americano",
+          size: "中杯",
+          fulfillment: "pickup",
+          itemPrice: 8.9,
+          discounts: [],
+          purchaseUrl: "https://www.cotticoffee.com/"
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  const reply = await runCoffeePriceSearch({
+    message: "查公司附近冰美式",
+    configPath,
+    purchasePageOpener: {
+      open: async (url) => {
+        opened.push(url);
+      }
+    }
+  });
+
+  assert.deepEqual(opened, []);
+  assert.match(reply, /未打开购买页/);
+  assert.match(reply, /参考源/);
+});
+
 test("uses city benchmark source as a no-token fallback", async () => {
   const dir = await mkdtemp(join(tmpdir(), "coffee-action-benchmark-"));
   const configPath = join(dir, "config.json");
