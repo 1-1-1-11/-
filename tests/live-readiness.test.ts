@@ -163,6 +163,51 @@ test("live readiness suggests external source setup when all realtime sources ar
   assert.match(report.actions[2]?.command ?? "", /meituan:doctor/);
 });
 
+test("live readiness points OrderWise setup at ADB when the CLI doctor sees no device", () => {
+  const config: CoffeePriceConfig = {
+    ...baseConfig,
+    sources: { meituan: false, eleme: false, brandOfficial: false },
+    externalSources: [
+      { id: "orderwiseCli", label: "OrderWise CLI 直连", enabled: false }
+    ]
+  };
+
+  const report = buildLiveReadinessReport({
+    config,
+    doctor: { status: "pass", checks: [] },
+    audits: {},
+    orderwiseDoctor: {
+      status: "fail",
+      checks: [
+        {
+          id: "cli",
+          label: "OrderWise CLI",
+          status: "pass",
+          message: "python ok"
+        },
+        {
+          id: "adb",
+          label: "ADB 设备",
+          status: "fail",
+          message: "ADB 可执行，但未检测到已授权 Android 设备",
+          detail: "adb=C:\\tools\\adb.exe\nList of devices attached"
+        },
+        {
+          id: "device-mapping",
+          label: "设备映射",
+          status: "fail",
+          message: "设备映射仍是占位值"
+        }
+      ]
+    }
+  });
+
+  assert.equal(report.checks.find((check) => check.id === "external-source:orderwiseCli")?.status, "warn");
+  assert.equal(report.actions[0]?.id, "connect-orderwise-adb-device");
+  assert.match(report.actions[0]?.command ?? "", /adb\.exe" connect "<cloud-phone-host:port>"/);
+  assert.match(report.actions[0]?.command ?? "", /orderwise:doctor -- --source-kind cli/);
+});
+
 test("live readiness keeps realtime alternatives visible when enabled Luckin is not ready", () => {
   const config: CoffeePriceConfig = {
     ...baseConfig,

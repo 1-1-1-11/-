@@ -2,6 +2,7 @@ import type { DoctorReport, DoctorStatus } from "./doctor.js";
 import type { BrowserNetworkLogEntry } from "./browser-capture.js";
 import type { CaptureCalibrationReport } from "./capture-calibrate.js";
 import type { LuckinDoctorReport } from "./luckin-mcp-doctor.js";
+import type { OrderWiseDoctorReport } from "./orderwise-mcp-doctor.js";
 import type { BrowserSourceSelectorAudit } from "./providers/browser-source-provider.js";
 import type { BrowserSourceSpec, CoffeePriceConfig } from "./types.js";
 
@@ -36,6 +37,7 @@ export interface BuildLiveReadinessReportInput {
   networkLogs?: Partial<Record<BrowserPlatformSource, BrowserNetworkLogEntry[] | null>>;
   calibrationReport?: CaptureCalibrationReport | null;
   luckinDoctor?: LuckinDoctorReport | null;
+  orderwiseDoctor?: OrderWiseDoctorReport | null;
 }
 
 const SOURCE_KEYS: readonly BrowserPlatformSource[] = ["meituan", "eleme", "brandOfficial"];
@@ -54,6 +56,10 @@ export function buildLiveReadinessReport(
   const luckinCheck = checkLuckinRealtimeSource(input.config, input.luckinDoctor);
   if (luckinCheck) {
     checks.push(luckinCheck);
+  }
+  const orderwiseCheck = checkOrderWiseCliRealtimeSource(input.config, input.orderwiseDoctor);
+  if (orderwiseCheck) {
+    checks.push(orderwiseCheck);
   }
   if (input.calibrationReport) {
     checks.push(checkCalibrationReport(input.calibrationReport));
@@ -176,6 +182,37 @@ function checkLuckinRealtimeSource(
     "external-source:luckinMcp",
     "瑞幸官方 CLI 实时源",
     "瑞幸实时自取价尚未 ready；微信查价会继续使用其它可用来源",
+    failing || undefined
+  );
+}
+
+function checkOrderWiseCliRealtimeSource(
+  config: CoffeePriceConfig,
+  orderwiseDoctor: OrderWiseDoctorReport | null | undefined
+): LiveReadinessCheck | undefined {
+  const source = config.externalSources?.find((entry) => entry.id === "orderwiseCli");
+  if (!source || !orderwiseDoctor) {
+    return undefined;
+  }
+  if (orderwiseDoctor.status === "pass") {
+    return pass("external-source:orderwiseCli", "OrderWise CLI 实时源", "Python、ADB、设备映射和模型配置已通过专项检查");
+  }
+  const failing = orderwiseDoctor.checks
+    .filter((check) => check.status !== "pass")
+    .map((check) => [check.label, check.message].filter(Boolean).join(": "))
+    .join("; ");
+  if (source.enabled === false) {
+    return warn(
+      "external-source:orderwiseCli",
+      "OrderWise CLI 实时源",
+      "OrderWise CLI 尚未 ready；配置前需要先补齐设备和模型",
+      failing || undefined
+    );
+  }
+  return fail(
+    "external-source:orderwiseCli",
+    "OrderWise CLI 实时源",
+    "OrderWise CLI 已启用但专项检查未通过；实时 App 查价会失败",
     failing || undefined
   );
 }
@@ -335,7 +372,7 @@ function captureAuditCommand(source: BrowserPlatformSource): string {
 function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveReadinessAction[] {
   const actions: LiveReadinessAction[] = [];
 
-  actions.push(...buildExternalSourceActions(input.config, input.luckinDoctor));
+  actions.push(...buildExternalSourceActions(input.config, input.luckinDoctor, input.orderwiseDoctor));
 
   for (const check of input.doctor?.checks ?? []) {
     if (check.status !== "fail") {
@@ -424,7 +461,8 @@ function buildLiveReadinessActions(input: BuildLiveReadinessReportInput): LiveRe
 
 function buildExternalSourceActions(
   config: CoffeePriceConfig,
-  luckinDoctor: LuckinDoctorReport | null | undefined
+  luckinDoctor: LuckinDoctorReport | null | undefined,
+  orderwiseDoctor: OrderWiseDoctorReport | null | undefined
 ): LiveReadinessAction[] {
   const externalSources = config.externalSources ?? [];
   if (externalSources.length === 0) {
@@ -435,12 +473,14 @@ function buildExternalSourceActions(
   const hasDisabledOrderWiseCli = externalSources.some((source) => source.id === "orderwiseCli" && source.enabled === false);
   const hasDisabledOrderWiseMcp = externalSources.some((source) => source.id === "orderwiseMcp" && source.enabled === false);
 
+  const orderwiseAction = buildOrderWiseCliAction(orderwiseDoctor);
   if (hasDisabledOrderWiseCli) {
     actions.push({
-      id: "configure-external-source:orderwiseCli",
-      label: "配置 OrderWise CLI 直连实时源",
-      reason: "已有 OrderWise CLI 直连源配置但仍未启用；可不常驻 MCP server，先用已授权 ADB 设备自动映射美团作为第一条外卖实时源",
-      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --source-kind cli --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+      ...orderwiseAction,
+      id: orderwiseAction.id,
+      label: orderwiseAction.label,
+      reason: orderwiseAction.reason,
+      command: orderwiseAction.command
     });
   } else if (hasDisabledOrderWiseMcp) {
     actions.push({
@@ -484,6 +524,43 @@ function buildExternalSourceActions(
     });
   }
   return actions;
+}
+
+function buildOrderWiseCliAction(orderwiseDoctor: OrderWiseDoctorReport | null | undefined): LiveReadinessAction {
+  const adbCheck = orderwiseDoctor?.checks.find((check) => check.id === "adb" && check.status !== "pass");
+  if (adbCheck) {
+    const adbPath = extractDoctorDetailValue(adbCheck.detail, "adb");
+    const command = adbPath
+      ? `& "${adbPath}" connect "<cloud-phone-host:port>"; npm run orderwise:doctor -- --source-kind cli --adb "${adbPath}"`
+      : "winget install --id Google.PlatformTools -e --accept-source-agreements --accept-package-agreements; npm run orderwise:doctor -- --source-kind cli";
+    return {
+      id: "connect-orderwise-adb-device",
+      label: "连接 OrderWise Android/云手机设备",
+      reason: [adbCheck.message, adbCheck.detail].filter(Boolean).join(" - "),
+      command
+    };
+  }
+
+  const mappingCheck = orderwiseDoctor?.checks.find((check) => check.id === "device-mapping" && check.status !== "pass");
+  const modelCheck = orderwiseDoctor?.checks.find((check) => check.id === "model" && check.status !== "pass");
+  return {
+    id: "configure-external-source:orderwiseCli",
+    label: "配置 OrderWise CLI 直连实时源",
+    reason: [
+      "已有 OrderWise CLI 直连源配置但仍未启用；可不常驻 MCP server，先用已授权 ADB 设备自动映射美团作为第一条外卖实时源",
+      mappingCheck ? `${mappingCheck.label}: ${mappingCheck.message}` : undefined,
+      modelCheck ? `${modelCheck.label}: ${modelCheck.message}` : undefined
+    ].filter(Boolean).join(" - "),
+    command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --source-kind cli --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+  };
+}
+
+function extractDoctorDetailValue(detail: string | undefined, key: string): string | undefined {
+  return detail
+    ?.split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith(`${key}=`))
+    ?.slice(key.length + 1);
 }
 
 function isAuditReady(audit: BrowserSourceSelectorAudit | null | undefined): boolean {

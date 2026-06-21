@@ -4,6 +4,12 @@ import { readConfig } from "./config.js";
 import { runDoctor } from "./doctor.js";
 import { runLuckinDoctor, type LuckinDoctorReport } from "./luckin-mcp-doctor.js";
 import {
+  parseOrderWiseDoctorArgs,
+  runOrderWiseDoctor,
+  type OrderWiseDoctorOptions,
+  type OrderWiseDoctorReport
+} from "./orderwise-mcp-doctor.js";
+import {
   buildLiveReadinessReport,
   defaultAuditPath,
   defaultNetworkPath,
@@ -37,6 +43,7 @@ export interface VerifyLiveCliDeps {
   readConfig?: (path: string) => Promise<CoffeePriceConfig>;
   runDoctor?: () => Promise<DoctorReport>;
   runLuckinDoctor?: (options: { configPath: string; json: boolean }) => Promise<LuckinDoctorReport>;
+  runOrderWiseDoctor?: (options: OrderWiseDoctorOptions) => Promise<OrderWiseDoctorReport>;
   readAudit?: (path: string) => Promise<BrowserSourceSelectorAudit | null>;
   readNetworkLog?: (path: string) => Promise<BrowserNetworkLogEntry[] | null>;
   readCalibrationReport?: (path: string) => Promise<CaptureCalibrationReport | null>;
@@ -78,6 +85,9 @@ export async function runVerifyLiveCli(
   const luckinDoctor = !options.skipDoctor && hasLuckinSource(config)
     ? await (deps.runLuckinDoctor ?? runLuckinDoctor)({ configPath: options.configPath, json: false })
     : undefined;
+  const orderwiseDoctor = !options.skipDoctor && hasOrderWiseCliSource(config)
+    ? await (deps.runOrderWiseDoctor ?? runOrderWiseDoctor)(parseOrderWiseDoctorArgs(["--source-kind", "cli"]))
+    : undefined;
   const readAudit = deps.readAudit ?? readAuditFile;
   const readNetworkLog = deps.readNetworkLog ?? readNetworkLogFile;
   const audits: Partial<Record<BrowserPlatformSource, BrowserSourceSelectorAudit | null>> = {};
@@ -91,7 +101,7 @@ export async function runVerifyLiveCli(
   const calibrationReport = options.ignoreCalibrationReport
     ? null
     : await (deps.readCalibrationReport ?? readCalibrationReportFile)(options.calibrationReportPath);
-  const report = buildLiveReadinessReport({ config, doctor, audits, networkLogs, calibrationReport, luckinDoctor });
+  const report = buildLiveReadinessReport({ config, doctor, audits, networkLogs, calibrationReport, luckinDoctor, orderwiseDoctor });
   return {
     text: options.outputFormat === "json"
       ? `${JSON.stringify(report, null, 2)}\n`
@@ -103,6 +113,10 @@ export async function runVerifyLiveCli(
 
 function hasLuckinSource(config: CoffeePriceConfig): boolean {
   return (config.externalSources ?? []).some((source) => source.id === "luckinMcp");
+}
+
+function hasOrderWiseCliSource(config: CoffeePriceConfig): boolean {
+  return (config.externalSources ?? []).some((source) => source.id === "orderwiseCli");
 }
 
 function readOption(args: string[], name: string): string | undefined {

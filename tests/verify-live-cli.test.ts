@@ -134,6 +134,49 @@ test("live verification CLI includes Luckin doctor when Luckin source is configu
   assert.deepEqual(result.report.actions.map((action) => action.id), ["configure-external-source:luckinMcp"]);
 });
 
+test("live verification CLI includes OrderWise CLI doctor when the source is configured", async () => {
+  let orderwiseDoctorCalled = false;
+  const result = await runVerifyLiveCli(["--ignore-calibration-report"], {
+    readConfig: async () => ({
+      ...config,
+      sources: { meituan: false, eleme: false, brandOfficial: false },
+      externalSources: [{ id: "orderwiseCli", label: "OrderWise CLI 直连", enabled: false }]
+    }),
+    runDoctor: async () => ({ status: "pass", checks: [] }),
+    runOrderWiseDoctor: async (options) => {
+      orderwiseDoctorCalled = true;
+      assert.equal(options.sourceKind, "cli");
+      return {
+        status: "fail",
+        checks: [
+          {
+            id: "cli",
+            label: "OrderWise CLI",
+            status: "pass",
+            message: "python ok"
+          },
+          {
+            id: "adb",
+            label: "ADB 设备",
+            status: "fail",
+            message: "ADB 可执行，但未检测到已授权 Android 设备",
+            detail: "adb=C:\\tools\\adb.exe\nList of devices attached"
+          }
+        ]
+      };
+    },
+    readAudit: async () => null,
+    readNetworkLog: async () => null,
+    readCalibrationReport: async () => null
+  });
+
+  assert.equal(orderwiseDoctorCalled, true);
+  assert.equal(result.report.status, "warn");
+  assert.equal(result.exitCode, 0);
+  assert.match(result.text, /OrderWise CLI 实时源/);
+  assert.equal(result.report.actions[0]?.id, "connect-orderwise-adb-device");
+});
+
 test("live verification CLI includes failed calibration report details", async () => {
   const calibrationReport: CaptureCalibrationReport = {
     status: "fail",
