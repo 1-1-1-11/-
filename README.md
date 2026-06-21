@@ -330,7 +330,17 @@ npm run orderwise:mcp-source -- -- --endpoint "http://127.0.0.1:8703/mcp" --bran
 
 注意：`orderwise:mcp-source` 同样从 stdin 读取 `{ query, address }`；Windows PowerShell 5.1 下手动管道测试并传参时使用双 `--`。没有 stdin 的配置/诊断命令（例如 `orderwise:configure`、`orderwise:doctor`）仍使用普通 `npm run xxx -- --flag`。
 
-作为 `externalSources` 运行时，它会从 stdin 读取 `{ query, address }`，对每个品牌调用一次 OrderWise `compare_prices(product_name=饮品, seller_name=品牌, apps=...)`，并把 `platforms[]` 或 `platform_results{}` 中的 `price`、`delivery_fee`、`pack_fee`、`total_fee` 映射成外卖到手价候选。示例配置已包含一个禁用的 `orderwiseMcp` 外部源。
+作为 `externalSources` 运行时，它会从 stdin 读取 `{ query, address }`，对每个品牌调用一次 OrderWise `compare_prices(product_name=饮品, seller_name=品牌, apps=...)`，并把 `platforms[]` 或 `platform_results{}` 中的 `price`、`delivery_fee`、`pack_fee`、`total_fee` 映射成外卖到手价候选。示例配置已包含禁用的 `orderwiseMcp` 和 `orderwiseCli` 外部源。
+
+如果不想常驻 MCP server，可以用 `orderwise:cli-source` 直连官方 Python CLI。它同样使用 OrderWise 的 App/云手机/Phone Agent 路线，只是由 OpenClaw 每次查价时按需启动：
+
+```powershell
+@'
+{"query":{"rawText":"查咖啡","drink":"冰美式","normalizedDrink":"冰美式","temperature":"冰","quantity":1},"address":{"name":"公司","address":"上海市黄浦区人民广场","latitude":31.2304,"longitude":121.4737}}
+'@ | npm run orderwise:cli-source -- -- --brands "瑞幸,库迪,星巴克" --apps "美团" --max-steps 80
+```
+
+注意：`orderwise:cli-source` 也从 stdin 读取 `{ query, address }`；Windows PowerShell 5.1 下手动管道测试并传参时同样使用双 `--`。
 
 启动本机 OrderWise MCP 服务：
 
@@ -355,25 +365,27 @@ $env:PHONE_AGENT_API_KEY = "你的 Phone Agent 或模型服务 API key"
 npm run orderwise:configure -- --meituan "10.0.0.10:5555" --jd "10.0.0.11:5555" --taobao "10.0.0.12:5555" --orderwise-model-url "http://localhost:4244/v1" --orderwise-model-name "autoglm-phone-9b" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source
 ```
 
-如果先用一台已授权的本机 Android 设备跑美团外卖实时价，可以让配置命令自动读取 `adb devices -l` 并把 `orderwiseMcp` 限定为“美团”：
+如果先用一台已授权的本机 Android 设备跑美团外卖实时价，可以让配置命令自动读取 `adb devices -l` 并启用 CLI 直连源，把 `orderwiseCli` 限定为“美团”：
 
 ```powershell
 $env:PHONE_AGENT_API_KEY = "你的 Phone Agent 或模型服务 API key"
-npm run orderwise:configure -- --auto-adb --source-apps "美团" --orderwise-model-url "http://localhost:4244/v1" --orderwise-model-name "autoglm-phone-9b" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source
+npm run orderwise:configure -- --source-kind cli --auto-adb --source-apps "美团" --orderwise-model-url "http://localhost:4244/v1" --orderwise-model-name "autoglm-phone-9b" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source
 ```
 
 `orderwise:configure` 会写入三处本机配置：
 
 - `.runtime/orderwise-agent/mcp_mode/mcp_server/app_device_mapping.json`：OrderWise 的 app 到云手机/Android 设备映射。
 - `.runtime/orderwise-agent/.env.local`：模型地址、模型名和 API key 环境变量名。自部署模型可用 OrderWise 官方文档里的 `ORDERWISE_MODEL_URL` / `ORDERWISE_MODEL_NAME`，本项目会自动映射为 MCP backend 实际读取的 `PHONE_AGENT_BASE_URL` / `PHONE_AGENT_MODEL`。
-- `config/coffee-price.config.json`：加 `--enable-source` 时启用示例里的 `orderwiseMcp` 外部源。
+- `config/coffee-price.config.json`：加 `--enable-source` 时启用示例里的 `orderwiseMcp` 或 `orderwiseCli` 外部源。
 
-`.runtime/` 不会提交到 Git。若只是预览会改什么，先加 `--dry-run`；实际写入后重启 `npm run orderwise:serve`，再运行 `npm run orderwise:doctor`。
+`.runtime/` 不会提交到 Git。若只是预览会改什么，先加 `--dry-run`；MCP 模式实际写入后重启 `npm run orderwise:serve`，再运行 `npm run orderwise:doctor`。CLI 直连模式不需要常驻 `orderwise:serve`，但仍建议先跑 `npm run orderwise:doctor -- --source-kind cli` 检查 Python CLI、设备映射和模型配置。
 
 可选环境变量：
 
 ```powershell
 $env:ORDERWISE_MCP_URL = "http://127.0.0.1:8703/mcp"
+$env:ORDERWISE_CLI_PATH = ".runtime\orderwise-agent"
+$env:ORDERWISE_PYTHON_PATH = ".runtime\orderwise-agent\.venv\Scripts\python.exe"
 $env:ORDERWISE_BRANDS = "瑞幸,库迪,星巴克"
 $env:ORDERWISE_APPS = "美团,京东外卖,淘宝闪购"
 $env:ORDERWISE_MODEL_PROVIDER = "local"

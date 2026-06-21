@@ -154,6 +154,15 @@
       "command": "node",
       "args": ["--import", "tsx", "src/orderwise-mcp-source-cli.ts", "--endpoint", "http://127.0.0.1:8703/mcp"],
       "timeoutMs": 600000
+    },
+    {
+      "id": "orderwiseCli",
+      "label": "OrderWise CLI 直连",
+      "enabled": false,
+      "type": "command",
+      "command": "node",
+      "args": ["--import", "tsx", "src/orderwise-cli-source-cli.ts", "--mapping", ".runtime/orderwise-agent/mcp_mode/mcp_server/app_device_mapping.json"],
+      "timeoutMs": 600000
     }
   ],
   "browserSources": {

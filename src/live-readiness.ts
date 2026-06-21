@@ -432,7 +432,24 @@ function buildExternalSourceActions(
   }
   const actions: LiveReadinessAction[] = [];
   const allDisabled = externalSources.every((source) => source.enabled === false);
+  const hasDisabledOrderWiseCli = externalSources.some((source) => source.id === "orderwiseCli" && source.enabled === false);
+  const hasDisabledOrderWiseMcp = externalSources.some((source) => source.id === "orderwiseMcp" && source.enabled === false);
 
+  if (hasDisabledOrderWiseCli) {
+    actions.push({
+      id: "configure-external-source:orderwiseCli",
+      label: "配置 OrderWise CLI 直连实时源",
+      reason: "已有 OrderWise CLI 直连源配置但仍未启用；可不常驻 MCP server，先用已授权 ADB 设备自动映射美团作为第一条外卖实时源",
+      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --source-kind cli --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+    });
+  } else if (hasDisabledOrderWiseMcp) {
+    actions.push({
+      id: "configure-external-source:orderwiseMcp",
+      label: "配置 OrderWise 多平台 MCP 实时源",
+      reason: "已有 OrderWise MCP 源配置但仍未启用；可先用已授权 ADB 设备自动映射美团，作为第一条外卖实时源",
+      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
+    });
+  }
   if (
     luckinDoctor &&
     luckinDoctor.status !== "pass" &&
@@ -450,14 +467,6 @@ function buildExternalSourceActions(
     return actions;
   }
 
-  if (externalSources.some((source) => source.id === "orderwiseMcp" && source.enabled === false)) {
-    actions.push({
-      id: "configure-external-source:orderwiseMcp",
-      label: "配置 OrderWise 多平台 MCP 实时源",
-      reason: "已有 OrderWise MCP 源配置但仍未启用；可先用已授权 ADB 设备自动映射美团，作为第一条外卖实时源",
-      command: "$env:PHONE_AGENT_API_KEY = \"<phone-agent-api-key>\"; npm run orderwise:configure -- --auto-adb --source-apps \"美团\" --orderwise-model-url \"<model-base-url>\" --orderwise-model-name \"<model-name>\" --phone-agent-api-key-env PHONE_AGENT_API_KEY --enable-source"
-    });
-  }
   if (externalSources.some((source) => source.id === "luckinMcp" && source.enabled === false)) {
     actions.push({
       id: "configure-external-source:luckinMcp",

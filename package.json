@@ -20,6 +20,7 @@
     "meituan:app-source": "node --import tsx src/meituan-app-source-cli.ts",
     "meituan:doctor": "tsx src/meituan-app-doctor-cli.ts --",
     "meituan:serve": "tsx src/meituan-app-serve-cli.ts --",
+    "orderwise:cli-source": "node --import tsx src/orderwise-cli-source-cli.ts",
     "orderwise:mcp-source": "node --import tsx src/orderwise-mcp-source-cli.ts",
     "orderwise:doctor": "tsx src/orderwise-mcp-doctor-cli.ts --",
     "orderwise:serve": "tsx src/orderwise-mcp-serve-cli.ts --",

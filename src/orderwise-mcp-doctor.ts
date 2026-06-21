@@ -1,4 +1,7 @@
+import { execFile as execFileCallback } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
+import { promisify } from "node:util";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -21,7 +24,10 @@ export interface OrderWiseDoctorReport {
 }
 
 export interface OrderWiseDoctorOptions {
+  sourceKind: "mcp" | "cli";
   endpoint: string;
+  repoPath: string;
+  pythonPath: string;
   mappingPath: string;
   envPath: string;
   json: boolean;
@@ -31,17 +37,26 @@ export interface OrderWiseDoctorDeps {
   env?: NodeJS.ProcessEnv;
   readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   listTools?: (endpoint: string) => Promise<string[]>;
+  execFile?: (file: string, args: string[], options?: { cwd?: string; timeout?: number; windowsHide?: boolean }) => Promise<{ stdout: string; stderr: string }>;
 }
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:8703/mcp";
+const DEFAULT_REPO_PATH = ".runtime/orderwise-agent";
 const DEFAULT_MAPPING_PATH = ".runtime/orderwise-agent/mcp_mode/mcp_server/app_device_mapping.json";
+const DEFAULT_PYTHON_PATH = process.platform === "win32"
+  ? ".runtime/orderwise-agent/.venv/Scripts/python.exe"
+  : ".runtime/orderwise-agent/.venv/bin/python";
+const execFileAsync = promisify(execFileCallback);
 
 export function parseOrderWiseDoctorArgs(
   args: string[],
   env: NodeJS.ProcessEnv = process.env
 ): OrderWiseDoctorOptions {
   const options: OrderWiseDoctorOptions = {
+    sourceKind: "mcp",
     endpoint: env.ORDERWISE_MCP_URL ?? DEFAULT_ENDPOINT,
+    repoPath: env.ORDERWISE_CLI_PATH ?? DEFAULT_REPO_PATH,
+    pythonPath: env.ORDERWISE_PYTHON_PATH ?? DEFAULT_PYTHON_PATH,
     mappingPath: env.ORDERWISE_DEVICE_MAPPING_FILE ?? DEFAULT_MAPPING_PATH,
     envPath: env.ORDERWISE_ENV_FILE ?? ".runtime/orderwise-agent/.env.local",
     json: args.includes("--json")
@@ -52,6 +67,21 @@ export function parseOrderWiseDoctorArgs(
     const next = args[index + 1];
     if (arg === "--endpoint") {
       options.endpoint = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--source-kind") {
+      options.sourceKind = parseSourceKind(requireValue(arg, next));
+      index += 1;
+      continue;
+    }
+    if (arg === "--repo") {
+      options.repoPath = requireValue(arg, next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--python") {
+      options.pythonPath = requireValue(arg, next);
       index += 1;
       continue;
     }
@@ -87,7 +117,11 @@ export async function runOrderWiseDoctor(
   deps: OrderWiseDoctorDeps = {}
 ): Promise<OrderWiseDoctorReport> {
   const checks: OrderWiseDoctorCheck[] = [];
-  checks.push(await checkMcpEndpoint(options.endpoint, deps));
+  if (options.sourceKind === "cli") {
+    checks.push(await checkCliPython(options.repoPath, options.pythonPath, deps));
+  } else {
+    checks.push(await checkMcpEndpoint(options.endpoint, deps));
+  }
   checks.push(await checkDeviceMapping(options.mappingPath, deps));
   const effectiveEnv = await loadOrderWiseEnvFile(options.envPath, deps.env ?? process.env, deps.readFile ?? readFile);
   checks.push(checkModelEnv(effectiveEnv));
@@ -95,7 +129,10 @@ export async function runOrderWiseDoctor(
 }
 
 export function formatOrderWiseDoctorReport(report: OrderWiseDoctorReport): string {
-  const lines = [`OrderWise MCP 源检查`, `总体: ${report.status.toUpperCase()}`];
+  const header = report.checks.some((check) => check.id === "cli")
+    ? "OrderWise CLI 直连源检查"
+    : "OrderWise MCP 源检查";
+  const lines = [header, `总体: ${report.status.toUpperCase()}`];
   for (const check of report.checks) {
     lines.push(`- [${check.status.toUpperCase()}] ${check.label}: ${check.message}`);
     if (check.detail) {
@@ -103,6 +140,42 @@ export function formatOrderWiseDoctorReport(report: OrderWiseDoctorReport): stri
     }
   }
   return lines.join("\n");
+}
+
+async function checkCliPython(
+  repoPath: string,
+  pythonPath: string,
+  deps: OrderWiseDoctorDeps
+): Promise<OrderWiseDoctorCheck> {
+  const cwd = resolve(repoPath);
+  const executable = resolveExecutablePath(pythonPath, cwd);
+  try {
+    const result = await (deps.execFile ?? execFileText)(executable, [
+      "-c",
+      "import orderwise_agent; print('orderwise-agent-ok')"
+    ], {
+      cwd,
+      timeout: 30000,
+      windowsHide: true
+    });
+    if (result.stdout.includes("orderwise-agent-ok")) {
+      return pass("cli", "OrderWise CLI", `${executable} 可加载 orderwise_agent`, cwd);
+    }
+    return fail("cli", "OrderWise CLI", "Python 可执行，但未确认 orderwise_agent 模块", result.stdout || result.stderr);
+  } catch (error) {
+    return fail(
+      "cli",
+      "OrderWise CLI",
+      "无法加载 OrderWise CLI/Python 模块",
+      [
+        `repo=${repoPath}`,
+        `python=${pythonPath}`,
+        `resolvedPython=${executable}`,
+        "可运行: .runtime\\orderwise-agent\\.venv\\Scripts\\python.exe -m orderwise_agent --version",
+        error instanceof Error ? error.message : String(error)
+      ].join("\n")
+    );
+  }
 }
 
 async function checkMcpEndpoint(endpoint: string, deps: OrderWiseDoctorDeps): Promise<OrderWiseDoctorCheck> {
@@ -199,6 +272,50 @@ function requireValue(flag: string, value: string | undefined): string {
     throw new Error(`${flag} 缺少参数值`);
   }
   return value;
+}
+
+function parseSourceKind(value: string): "mcp" | "cli" {
+  if (value === "mcp" || value === "cli") {
+    return value;
+  }
+  throw new Error("--source-kind 必须是 mcp 或 cli");
+}
+
+async function execFileText(
+  file: string,
+  args: string[],
+  options: { cwd?: string; timeout?: number; windowsHide?: boolean } = {}
+): Promise<{ stdout: string; stderr: string }> {
+  const result = await execFileAsync(file, args, {
+    cwd: options.cwd,
+    timeout: options.timeout,
+    windowsHide: options.windowsHide,
+    encoding: "utf8"
+  });
+  return {
+    stdout: String(result.stdout),
+    stderr: String(result.stderr)
+  };
+}
+
+function resolveExecutablePath(pathValue: string, repoPath: string): string {
+  if (isAbsolute(pathValue) || !hasPathSeparator(pathValue)) {
+    return pathValue;
+  }
+  const normalizedPath = normalizePath(pathValue);
+  const normalizedRepo = normalizePath(repoPath).replace(/\/$/, "");
+  if (normalizedPath.startsWith(`${normalizedRepo}/`) || normalizedPath.startsWith(".runtime/")) {
+    return resolve(pathValue);
+  }
+  return resolve(repoPath, pathValue);
+}
+
+function hasPathSeparator(pathValue: string): boolean {
+  return pathValue.includes("/") || pathValue.includes("\\");
+}
+
+function normalizePath(pathValue: string): string {
+  return pathValue.replace(/\\/g, "/");
 }
 
 function pass(id: string, label: string, message: string, detail?: string): OrderWiseDoctorCheck {

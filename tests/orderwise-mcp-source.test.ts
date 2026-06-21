@@ -268,6 +268,7 @@ test("parses OrderWise doctor options and reports ready service", async () => {
     "--json"
   ]);
 
+  assert.equal(parsed.sourceKind, "mcp");
   assert.equal(parsed.endpoint, "http://127.0.0.1:8703/mcp");
   assert.equal(parsed.mappingPath, "mapping.json");
   assert.equal(parsed.envPath, "orderwise.env");
@@ -285,6 +286,45 @@ test("parses OrderWise doctor options and reports ready service", async () => {
   assert.equal(result.exitCode, 0);
   assert.equal(result.report.status, "pass");
   assert.match(result.text, /compare_prices/);
+});
+
+test("OrderWise doctor can check the direct CLI source without MCP", async () => {
+  const parsed = parseOrderWiseDoctorArgs([
+    "--source-kind",
+    "cli",
+    "--repo",
+    ".runtime/ow",
+    "--python",
+    ".runtime/ow/.venv/Scripts/python.exe",
+    "--mapping",
+    "mapping.json"
+  ]);
+
+  assert.equal(parsed.sourceKind, "cli");
+  assert.equal(parsed.repoPath, ".runtime/ow");
+  assert.equal(parsed.pythonPath, ".runtime/ow/.venv/Scripts/python.exe");
+
+  const result = await runOrderWiseDoctorCli(["--source-kind", "cli", "--json"], {
+    env: {
+      PHONE_AGENT_BASE_URL: "http://model.example/v1",
+      PHONE_AGENT_MODEL: "autoglm-phone"
+    },
+    listTools: async () => {
+      throw new Error("MCP should not be called in CLI mode");
+    },
+    execFile: async (file, args, options) => {
+      assert.match(file, /python/);
+      assert.deepEqual(args, ["-c", "import orderwise_agent; print('orderwise-agent-ok')"]);
+      assert.equal(options?.windowsHide, true);
+      return { stdout: "orderwise-agent-ok\n", stderr: "" };
+    },
+    readFile: async () => JSON.stringify({ app1: "10.0.0.1:5555" })
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.report.status, "pass");
+  assert.equal(result.report.checks[0]?.id, "cli");
+  assert.match(result.text, /orderwise-agent-ok|OrderWise CLI/);
 });
 
 test("OrderWise doctor fails on placeholder device mapping", async () => {
@@ -487,6 +527,67 @@ test("OrderWise configure can auto-map authorized ADB devices", async () => {
     "美团,京东外卖"
   ]);
   assert.match(result.text, /ADB/);
+});
+
+test("OrderWise configure can enable the direct CLI source", async () => {
+  const parsed = parseOrderWiseConfigureArgs([
+    "--source-kind",
+    "cli",
+    "--source-apps",
+    "meituan",
+    "--source-brands",
+    "brand-a,brand-b",
+    "--source-max-steps",
+    "12",
+    "--enable-source"
+  ]);
+
+  assert.equal(parsed.sourceKind, "cli");
+
+  const writes = new Map<string, string>();
+  const result = await configureOrderWise(
+    {
+      ...parsed,
+      mappingPath: "mapping.json",
+      envPath: "orderwise.env",
+      configPath: "config.json"
+    },
+    {
+      readFile: async (path) => {
+        if (path === "mapping.json" || path === "orderwise.env") {
+          return "";
+        }
+        if (path === "config.json") {
+          return JSON.stringify({ externalSources: [] });
+        }
+        throw new Error(path);
+      },
+      writeFile: async (path, content) => {
+        writes.set(path, content);
+      },
+      mkdir: async () => undefined
+    }
+  );
+
+  assert.equal(result.sourceChanged, true);
+  const nextConfig = JSON.parse(writes.get("config.json") ?? "{}");
+  assert.equal(nextConfig.externalSources[0].id, "orderwiseCli");
+  assert.equal(nextConfig.externalSources[0].enabled, true);
+  assert.deepEqual(nextConfig.externalSources[0].args, [
+    "--import",
+    "tsx",
+    "src/orderwise-cli-source-cli.ts",
+    "--mapping",
+    "mapping.json",
+    "--brands",
+    "brand-a,brand-b",
+    "--apps",
+    "meituan",
+    "--max-steps",
+    "12"
+  ]);
+  assert.match(result.text, /orderwiseCli/);
+  assert.match(result.text, /orderwise:cli-source/);
 });
 
 test("OrderWise configure accepts official self-hosted model env names", async () => {

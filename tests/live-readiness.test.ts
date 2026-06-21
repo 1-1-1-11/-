@@ -133,6 +133,7 @@ test("live readiness suggests external source setup when all realtime sources ar
     externalSources: [
       { id: "luckinMcp", label: "瑞幸官方 MCP", enabled: false },
       { id: "meituanApp", label: "美团 App 自动化", enabled: false },
+      { id: "orderwiseCli", label: "OrderWise CLI 直连", enabled: false },
       { id: "orderwiseMcp", label: "OrderWise 多平台 MCP", enabled: false }
     ]
   };
@@ -148,12 +149,13 @@ test("live readiness suggests external source setup when all realtime sources ar
   assert.deepEqual(
     report.actions.map((action) => action.id),
     [
-      "configure-external-source:orderwiseMcp",
+      "configure-external-source:orderwiseCli",
       "configure-external-source:luckinMcp",
       "configure-external-source:meituanApp"
     ]
   );
   assert.match(report.actions[0]?.command ?? "", /npm run orderwise:configure/);
+  assert.match(report.actions[0]?.command ?? "", /--source-kind cli/);
   assert.match(report.actions[0]?.command ?? "", /--auto-adb/);
   assert.match(report.actions[0]?.command ?? "", /--source-apps "美团"/);
   assert.match(report.actions[0]?.command ?? "", /--orderwise-model-url/);
@@ -167,6 +169,7 @@ test("live readiness keeps realtime alternatives visible when enabled Luckin is 
     sources: { meituan: false, eleme: false, brandOfficial: false },
     externalSources: [
       { id: "luckinMcp", label: "瑞幸官方 CLI", enabled: true },
+      { id: "orderwiseCli", label: "OrderWise CLI 直连", enabled: false },
       { id: "orderwiseMcp", label: "OrderWise 多平台 MCP", enabled: false },
       { id: "meituanApp", label: "美团 App 自动化", enabled: false }
     ]
@@ -190,11 +193,13 @@ test("live readiness keeps realtime alternatives visible when enabled Luckin is 
   });
 
   assert.deepEqual(report.actions.map((action) => action.id), [
+    "configure-external-source:orderwiseCli",
     "configure-external-source:luckinMcp",
-    "configure-external-source:orderwiseMcp",
     "configure-external-source:meituanApp"
   ]);
-  assert.match(report.actions[1]?.command ?? "", /--auto-adb/);
+  assert.match(report.actions[0]?.command ?? "", /--auto-adb/);
+  assert.match(report.actions[0]?.command ?? "", /--source-kind cli/);
+  assert.match(report.actions[1]?.command ?? "", /luckin:official-login/);
 });
 
 test("live readiness warns when enabled Luckin source lacks token", () => {

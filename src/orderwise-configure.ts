@@ -22,6 +22,7 @@ export interface OrderWiseConfigureOptions {
   sourceApps?: string[];
   sourceBrands?: string[];
   sourceMaxSteps?: number;
+  sourceKind: "mcp" | "cli";
   enableSource: boolean;
   dryRun: boolean;
   json: boolean;
@@ -89,6 +90,7 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
     configPath: DEFAULT_CONFIG_PATH,
     mapping: {},
     autoAdb: args.includes("--auto-adb"),
+    sourceKind: "mcp",
     enableSource: args.includes("--enable-source"),
     dryRun: args.includes("--dry-run"),
     json: args.includes("--json")
@@ -166,6 +168,10 @@ export function parseOrderWiseConfigureArgs(args: string[]): OrderWiseConfigureO
         break;
       case "--source-max-steps":
         options.sourceMaxSteps = parsePositiveInteger(arg, requireValue(arg, next));
+        index += 1;
+        break;
+      case "--source-kind":
+        options.sourceKind = parseSourceKind(requireValue(arg, next));
         index += 1;
         break;
     }
@@ -276,11 +282,12 @@ function formatResult(
 ): string {
   const action = options.dryRun ? "将更新" : "已更新";
   const unchanged = options.dryRun ? "无需更新" : "未变更";
+  const sourceId = options.sourceKind === "cli" ? "orderwiseCli" : "orderwiseMcp";
   const lines = ["OrderWise 配置结果"];
   lines.push(`- 设备映射: ${changes.mappingChanged ? action : unchanged} ${options.mappingPath}`);
   lines.push(`- Phone Agent env: ${changes.envChanged ? action : unchanged} ${options.envPath}`);
   if (options.enableSource) {
-    lines.push(`- orderwiseMcp 外部源: ${changes.sourceChanged ? action : unchanged} ${options.configPath}`);
+    lines.push(`- ${sourceId} 外部源: ${changes.sourceChanged ? action : unchanged} ${options.configPath}`);
   }
   if (options.autoAdb) {
     lines.push("提示: 已尝试从 ADB 授权设备自动生成 OrderWise app 映射。");
@@ -296,7 +303,11 @@ function formatResult(
   if (options.orderwiseModelUrl || options.orderwiseModelName) {
     lines.push("提示: ORDERWISE_MODEL_URL/NAME 会自动映射为 OrderWise MCP backend 实际读取的 PHONE_AGENT_BASE_URL/MODEL。");
   }
-  lines.push("下一步: 重启 npm run orderwise:serve，然后运行 npm run orderwise:doctor。");
+  if (options.sourceKind === "cli") {
+    lines.push("下一步: 运行 npm run orderwise:doctor -- --source-kind cli；OpenClaw 会按需调用 orderwise:cli-source。");
+  } else {
+    lines.push("下一步: 重启 npm run orderwise:serve，然后运行 npm run orderwise:doctor。");
+  }
   return lines.join("\n");
 }
 
@@ -527,11 +538,12 @@ async function readOptional(
 
 function upsertOrderWiseSource(
   externalSources: ExternalSourceConfig[] | undefined,
-  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps">
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "mappingPath">
 ): ExternalSourceConfig[] {
+  const sourceId = options.sourceKind === "cli" ? "orderwiseCli" : "orderwiseMcp";
   const source: ExternalSourceConfig = {
-    id: "orderwiseMcp",
-    label: "OrderWise 多平台 MCP",
+    id: sourceId,
+    label: options.sourceKind === "cli" ? "OrderWise CLI 直连" : "OrderWise 多平台 MCP",
     enabled: true,
     type: "command",
     command: "node",
@@ -554,12 +566,14 @@ function upsertOrderWiseSource(
 }
 
 function buildOrderWiseSourceArgs(
-  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps">,
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind" | "mappingPath">,
   existingArgs?: string[]
 ): string[] {
   const args = existingArgs?.length
     ? [...existingArgs]
-    : ["--import", "tsx", "src/orderwise-mcp-source-cli.ts", "--endpoint", "http://127.0.0.1:8703/mcp"];
+    : options.sourceKind === "cli"
+      ? ["--import", "tsx", "src/orderwise-cli-source-cli.ts", "--mapping", options.mappingPath]
+      : ["--import", "tsx", "src/orderwise-mcp-source-cli.ts", "--endpoint", "http://127.0.0.1:8703/mcp"];
   if (options.sourceBrands?.length) {
     setFlag(args, "--brands", options.sourceBrands.join(","));
   }
@@ -573,9 +587,9 @@ function buildOrderWiseSourceArgs(
 }
 
 function shouldRewriteSourceArgs(
-  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps">
+  options: Pick<OrderWiseConfigureOptions, "sourceApps" | "sourceBrands" | "sourceMaxSteps" | "sourceKind">
 ): boolean {
-  return Boolean(options.sourceApps?.length || options.sourceBrands?.length || options.sourceMaxSteps !== undefined);
+  return Boolean(options.sourceKind === "cli" || options.sourceApps?.length || options.sourceBrands?.length || options.sourceMaxSteps !== undefined);
 }
 
 function setFlag(args: string[], flag: string, value: string): void {
@@ -597,6 +611,13 @@ function parseJsonObject(flag: string, value: string): Record<string, string> {
 
 function splitCsv(value: string): string[] {
   return value.split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
+function parseSourceKind(value: string): "mcp" | "cli" {
+  if (value === "mcp" || value === "cli") {
+    return value;
+  }
+  throw new Error("--source-kind 必须是 mcp 或 cli");
 }
 
 function resolveSourceAppKeys(sourceApps: string[] | undefined): string[] {
