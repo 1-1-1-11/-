@@ -245,6 +245,7 @@ test("live readiness keeps realtime alternatives visible when enabled Luckin is 
     "configure-external-source:meituanApp"
   ]);
   assert.match(report.actions[0]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[0]?.reason ?? "", /--from-clipboard/);
   assert.match(report.actions[1]?.command ?? "", /--auto-adb/);
   assert.match(report.actions[1]?.command ?? "", /--source-kind cli/);
 });
@@ -279,6 +280,7 @@ test("live readiness warns when enabled Luckin source lacks token", () => {
   assert.equal(report.checks.find((check) => check.id === "external-source:luckinMcp")?.status, "warn");
   assert.deepEqual(report.actions.map((action) => action.id), ["configure-external-source:luckinMcp"]);
   assert.match(report.actions[0]?.command ?? "", /luckin:official-login/);
+  assert.match(report.actions[0]?.reason ?? "", /--from-clipboard/);
 });
 
 test("live readiness actions suggest selector capture after a real source URL is configured", () => {

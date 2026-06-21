@@ -481,7 +481,7 @@ function buildExternalSourceActions(
     actions.push({
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 CLI 自取实时源",
-      reason: "瑞幸实时源已启用但专项检查未通过；需要运行官方 CLI 登录并确认 token",
+      reason: "瑞幸实时源已启用但专项检查未通过；先运行官方 CLI 登录并确认 token；如果网页授权没有自动落盘，复制开放平台 token 后运行 npm run luckin:official-login -- --from-clipboard",
       command: "npm run luckin:official-login"
     });
   }
@@ -512,7 +512,7 @@ function buildExternalSourceActions(
     actions.push({
       id: "configure-external-source:luckinMcp",
       label: "配置瑞幸官方 CLI 自取实时源",
-      reason: "已有瑞幸实时源配置，但仍未启用；需要运行官方 CLI 登录并启用 source",
+      reason: "已有瑞幸实时源配置，但仍未启用；需要运行官方 CLI 登录并启用 source；如果网页授权没有自动落盘，复制开放平台 token 后运行 npm run luckin:official-login -- --from-clipboard",
       command: "npm run luckin:official-login"
     });
   }
