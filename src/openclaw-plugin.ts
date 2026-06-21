@@ -3,6 +3,7 @@ import { Type } from "typebox";
 
 import { runCoffeePriceSearch } from "./action.js";
 import { bindLuckinTokenFromMessage } from "./luckin-token-bind.js";
+import { bindMcpSourceFromMessage } from "./mcp-source-bind.js";
 
 const configSchema = Type.Object({
   configPath: Type.Optional(
@@ -13,6 +14,11 @@ const configSchema = Type.Object({
   luckinTokenPath: Type.Optional(
     Type.String({
       description: "Local path for the user's Luckin MCP token. Defaults to the user profile token file."
+    })
+  ),
+  genericMcpTokenDir: Type.Optional(
+    Type.String({
+      description: "Local directory for user-provided generic MCP price source bearer tokens."
     })
   ),
   snapshotPaths: Type.Optional(
@@ -33,6 +39,13 @@ const parameters = Type.Object({
 const tokenBindParameters = Type.Object({
   message: Type.String({
     description: "The private WeChat message containing a Luckin MCP token, for example 绑定瑞幸 token Authorization: Bearer <token>."
+  })
+});
+
+const mcpSourceBindParameters = Type.Object({
+  message: Type.String({
+    description:
+      "The private WeChat message containing a generic MCP price source endpoint, tool name, and optional bearer token."
   })
 });
 
@@ -69,6 +82,22 @@ export default defineToolPlugin({
           message,
           tokenPath: config.luckinTokenPath,
           configPath: config.configPath
+        });
+        return result.text;
+      }
+    }),
+    tool({
+      name: "mcp_source_bind",
+      label: "Bind MCP Price Source",
+      description:
+        "Bind/import a generic MCP price source from a private WeChat message such as 接入MCP endpoint https://example.com/mcp tool coffee_price_search token Authorization: Bearer <token>. Call this tool for messages asking to add, configure, bind, or connect an MCP price source. It stores bearer tokens only in a local token file and configures the source for future coffee price searches. Never reveal, repeat, summarize, or log the token in the visible reply. Never place an order, never offer to place an order, and never ask whether the user wants you to place an order.",
+      parameters: mcpSourceBindParameters,
+      async execute({ message }, config, context) {
+        context.signal?.throwIfAborted();
+        const result = await bindMcpSourceFromMessage({
+          message,
+          configPath: config.configPath,
+          tokenDir: config.genericMcpTokenDir
         });
         return result.text;
       }

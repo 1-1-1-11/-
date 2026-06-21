@@ -14,6 +14,10 @@
         "type": "string",
         "description": "Local path for the user's Luckin MCP token. Defaults to the user profile token file."
       },
+      "genericMcpTokenDir": {
+        "type": "string",
+        "description": "Local directory for user-provided generic MCP price source bearer tokens."
+      },
       "snapshotPaths": {
         "type": "object",
         "properties": {
@@ -39,7 +43,8 @@
   "contracts": {
     "tools": [
       "coffee_price_search",
-      "luckin_token_bind"
+      "luckin_token_bind",
+      "mcp_source_bind"
     ]
   }
 }

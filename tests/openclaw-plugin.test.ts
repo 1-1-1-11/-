@@ -26,6 +26,17 @@ test("declares the Luckin token binding tool", () => {
   assert.match(tool?.description ?? "", /never place an order/i);
 });
 
+test("declares the generic MCP source binding tool", () => {
+  const metadata = getToolPluginMetadata(plugin);
+  const tool = metadata?.tools.find((entry) => entry.name === "mcp_source_bind");
+
+  assert.ok(tool);
+  assert.match(tool?.description ?? "", /MCP price source/i);
+  assert.match(tool?.description ?? "", /private WeChat/i);
+  assert.match(tool?.description ?? "", /never reveal/i);
+  assert.match(tool?.description ?? "", /never place an order/i);
+});
+
 test("forbids order placement offers in the OpenClaw tool contract", () => {
   const metadata = getToolPluginMetadata(plugin);
   const tool = metadata?.tools.find((entry) => entry.name === "coffee_price_search");
