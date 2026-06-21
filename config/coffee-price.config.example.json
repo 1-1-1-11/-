@@ -129,6 +129,15 @@
       "timeoutMs": 120000
     },
     {
+      "id": "mcdOfficial",
+      "label": "麦当劳官方 MCP",
+      "enabled": false,
+      "type": "command",
+      "command": "node",
+      "args": ["--import", "tsx", "src/mcd-official-source-cli.ts"],
+      "timeoutMs": 120000
+    },
+    {
       "id": "luckinProxyMcp",
       "label": "瑞幸 MCP Proxy",
       "enabled": false,

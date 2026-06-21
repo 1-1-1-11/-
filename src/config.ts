@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, resolve } from "node:path";
 
 import type { BrandConfig, CoffeePriceConfig, SourceConfig } from "./types.js";
 
-export const DEFAULT_BRANDS = ["瑞幸", "库迪", "星巴克", "Tims", "Manner", "M Stand", "Peet's"];
+export const DEFAULT_BRANDS = ["瑞幸", "库迪", "星巴克", "Tims", "Manner", "M Stand", "Peet's", "麦咖啡"];
 
 export interface ReadConfigOptions {
   includeDisabledExternalSources?: boolean;

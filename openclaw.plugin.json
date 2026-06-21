@@ -14,6 +14,10 @@
         "type": "string",
         "description": "Local path for the user's Luckin MCP token. Defaults to the user profile token file."
       },
+      "mcdTokenPath": {
+        "type": "string",
+        "description": "Local path for the user's McDonald's MCP token. Defaults to the user profile token file."
+      },
       "genericMcpTokenDir": {
         "type": "string",
         "description": "Local directory for user-provided generic MCP price source bearer tokens."
@@ -44,6 +48,7 @@
     "tools": [
       "coffee_price_search",
       "luckin_token_bind",
+      "mcd_token_bind",
       "mcp_source_bind"
     ]
   }
