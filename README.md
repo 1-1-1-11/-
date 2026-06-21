@@ -430,6 +430,24 @@ $env:ORDERWISE_DEVICE_MAPPING = '{"app1":"device-a","app2":"device-b","app3":"de
 npm run luckin:official-login
 ```
 
+登录流程默认最多等待 3 分钟；如果官方 CLI 打开了网页但没有回写 token，命令会退出并提示改用剪贴板导入。需要更长等待时间时：
+
+```powershell
+npm run luckin:official-login -- --login-timeout-ms 300000
+```
+
+如果官方 `luckin login` 打开了开放平台页面但没有自动写入 token，可以在页面里复制 MCP token，然后直接让同一个入口导入并启用：
+
+```powershell
+npm run luckin:official-login -- --from-clipboard
+```
+
+也可以显式粘贴 token、Bearer 头、JSON 配置或授权命令；输出不会打印 token 内容：
+
+```powershell
+npm run luckin:official-login -- --token "Authorization: Bearer <你的瑞幸 MCP token>"
+```
+
 如果只想安装并校验官方 CLI，而不启动登录流程：
 
 ```powershell
@@ -462,6 +480,7 @@ npm run luckin:setup
 
 ```powershell
 npm run --silent luckin:import-token -- --token "Authorization: Bearer <你的瑞幸 MCP token>" --enable
+npm run --silent luckin:import-token -- --from-clipboard --enable
 ```
 
 如果只想临时放在当前 Windows PowerShell 会话里，也可以用环境变量：

@@ -40,6 +40,11 @@ test("parses official Luckin CLI setup options", () => {
     ".runtime/luckin-test",
     "--config",
     "config/local.json",
+    "--token-file",
+    "token.txt",
+    "--from-clipboard",
+    "--login-timeout-ms",
+    "12345",
     "--install-only",
     "--json"
   ]);
@@ -47,6 +52,9 @@ test("parses official Luckin CLI setup options", () => {
   assert.equal(parsed.manifestUrl, "https://example.com/manifest.json");
   assert.equal(parsed.installDir, ".runtime/luckin-test");
   assert.equal(parsed.configPath, "config/local.json");
+  assert.equal(parsed.tokenPath, "token.txt");
+  assert.equal(parsed.fromClipboard, true);
+  assert.equal(parsed.loginTimeoutMs, 12345);
   assert.equal(parsed.installOnly, true);
   assert.equal(parsed.runLogin, false);
   assert.equal(parsed.enable, false);
@@ -129,6 +137,105 @@ test("downloads official CLI, runs login, enables source, and checks doctor", as
   assert.equal(result.enable?.changed, true);
   assert.equal(result.doctor?.status, "pass");
   assert.match(result.text, /瑞幸官方 CLI 已可用于实时自取价/);
+});
+
+test("official CLI login timeout returns clipboard fallback guidance", async () => {
+  const files = new Set<string>();
+  const result = await setupLuckinOfficialCli(
+    {
+      manifestUrl: "https://example.com/manifest.json",
+      installDir: ".runtime/luckin-official-test",
+      configPath: "config.json",
+      installOnly: false,
+      runLogin: true,
+      enable: true,
+      json: false
+    },
+    {
+      cwd: "D:\\work",
+      platform: "win32",
+      arch: "x64",
+      fetchText: async () => JSON.stringify(manifest),
+      fetchBuffer: async () => archive,
+      mkdir: async () => undefined,
+      writeFile: async () => undefined,
+      readFile: async () => archive,
+      existsSync: (path) => files.has(path),
+      extractArchive: async (_archivePath, destinationPath) => {
+        files.add(join(destinationPath, "luckin.exe"));
+      },
+      runCommand: async () => 124
+    }
+  );
+
+  assert.equal(result.loginExitCode, 124);
+  assert.match(result.text, /登录未完成或超时/);
+  assert.match(result.text, /luckin:official-login -- --from-clipboard/);
+});
+
+test("official CLI setup can import a copied token without running login", async () => {
+  const files = new Set<string>();
+  const imported: Array<{ tokenText?: string; fromClipboard?: boolean; enable: boolean }> = [];
+  const commands: Array<{ command: string; args: string[] }> = [];
+  const result = await setupLuckinOfficialCli(
+    {
+      manifestUrl: "https://example.com/manifest.json",
+      installDir: ".runtime/luckin-official-test",
+      configPath: "config.json",
+      tokenText: "Authorization: Bearer copied-token-1234567890",
+      tokenPath: "token.txt",
+      fromClipboard: false,
+      installOnly: false,
+      runLogin: true,
+      enable: true,
+      json: false
+    },
+    {
+      cwd: "D:\\work",
+      platform: "win32",
+      arch: "x64",
+      fetchText: async () => JSON.stringify(manifest),
+      fetchBuffer: async () => archive,
+      mkdir: async () => undefined,
+      writeFile: async () => undefined,
+      readFile: async () => archive,
+      existsSync: (path) => files.has(path),
+      extractArchive: async (_archivePath, destinationPath) => {
+        files.add(join(destinationPath, "luckin.exe"));
+      },
+      runCommand: async (command, args) => {
+        commands.push({ command, args });
+        return 0;
+      },
+      importLuckinToken: async (options) => {
+        imported.push({
+          tokenText: options.tokenText,
+          fromClipboard: options.fromClipboard,
+          enable: options.enable
+        });
+        return {
+          tokenPath: options.tokenPath,
+          enabled: options.enable,
+          text: "saved token"
+        };
+      },
+      runLuckinDoctor: async () => ({
+        status: "pass",
+        checks: [{ id: "token", label: "瑞幸 token", status: "pass", message: "ok" }]
+      })
+    }
+  );
+
+  assert.deepEqual(commands, []);
+  assert.deepEqual(imported, [
+    {
+      tokenText: "Authorization: Bearer copied-token-1234567890",
+      fromClipboard: false,
+      enable: true
+    }
+  ]);
+  assert.equal(result.doctor?.status, "pass");
+  assert.match(result.text, /已导入瑞幸官方 token/);
 });
 
 test("official CLI setup fails on checksum mismatch", async () => {

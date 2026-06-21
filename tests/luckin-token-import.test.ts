@@ -32,14 +32,30 @@ test("extracts Luckin token from common platform copy formats", () => {
 
 test("parses Luckin token import CLI options", () => {
   const parsed = parseLuckinTokenImportArgs(
-    ["--token-file", "token.txt", "--config", "config.json", "--enable", "--token", "abc1234567890123"],
+    ["--token-file", "token.txt", "--config", "config.json", "--enable", "--from-clipboard", "--token", "abc1234567890123"],
     {}
   );
 
   assert.equal(parsed.tokenPath, "token.txt");
   assert.equal(parsed.configPath, "config.json");
   assert.equal(parsed.enable, true);
+  assert.equal(parsed.fromClipboard, true);
   assert.equal(parsed.tokenText, "abc1234567890123");
+});
+
+test("imports token from clipboard without printing token value", async () => {
+  let writtenContent = "";
+  const result = await runLuckinTokenImportCli(["--token-file", "token.txt", "--from-clipboard"], {
+    readClipboard: async () => "Authorization: Bearer clipboard-token-1234567890",
+    mkdir: async () => undefined,
+    writeFile: async (_path, content) => {
+      writtenContent = content;
+    }
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(writtenContent, "clipboard-token-1234567890\n");
+  assert.doesNotMatch(result.text, /clipboard-token/);
 });
 
 test("imports token from stdin without printing token value", async () => {

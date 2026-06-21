@@ -7,11 +7,16 @@ import { basename, join, resolve } from "node:path";
 
 import { enableLuckinMcp, type LuckinEnableResult } from "./luckin-mcp-enable.js";
 import { formatLuckinDoctorReport, runLuckinDoctor, type LuckinDoctorReport } from "./luckin-mcp-doctor.js";
+import { importLuckinToken, type LuckinTokenImportResult } from "./luckin-token-import.js";
 
 export interface LuckinOfficialCliOptions {
   manifestUrl: string;
   installDir: string;
   configPath: string;
+  tokenText?: string;
+  tokenPath?: string;
+  fromClipboard?: boolean;
+  loginTimeoutMs?: number;
   installOnly: boolean;
   runLogin: boolean;
   enable: boolean;
@@ -40,6 +45,7 @@ export interface LuckinOfficialCliInstallResult {
 export interface LuckinOfficialCliResult {
   install: LuckinOfficialCliInstallResult;
   loginExitCode?: number;
+  tokenImport?: LuckinTokenImportResult;
   enable?: LuckinEnableResult;
   doctor?: LuckinDoctorReport;
   text: string;
@@ -55,6 +61,7 @@ export interface LuckinOfficialCliDeps {
   existsSync?: (path: string) => boolean;
   extractArchive?: (archivePath: string, destinationPath: string, kind: "zip" | "tgz") => Promise<void>;
   runCommand?: (command: string, args: string[]) => Promise<number>;
+  importLuckinToken?: typeof importLuckinToken;
   enableLuckinMcp?: typeof enableLuckinMcp;
   runLuckinDoctor?: typeof runLuckinDoctor;
   platform?: NodeJS.Platform;
@@ -65,6 +72,8 @@ export interface LuckinOfficialCliDeps {
 const DEFAULT_MANIFEST_URL = "https://open.lkcoffee.com/cli/manifest.json";
 const DEFAULT_CONFIG_PATH = "config/coffee-price.config.json";
 const DEFAULT_INSTALL_DIR = join(".runtime", "luckin-official-cli");
+const DEFAULT_TOKEN_PATH = join(homedir(), ".my-coffee", "LUCKIN_MCP_TOKEN");
+const DEFAULT_LOGIN_TIMEOUT_MS = 180_000;
 
 export function parseLuckinOfficialCliArgs(
   args: string[],
@@ -74,6 +83,9 @@ export function parseLuckinOfficialCliArgs(
     manifestUrl: env.LUCKIN_MANIFEST_URL ?? DEFAULT_MANIFEST_URL,
     installDir: env.LUCKIN_CLI_INSTALL_DIR ?? DEFAULT_INSTALL_DIR,
     configPath: DEFAULT_CONFIG_PATH,
+    tokenPath: env.LUCKIN_MCP_TOKEN_FILE ?? DEFAULT_TOKEN_PATH,
+    fromClipboard: args.includes("--from-clipboard"),
+    loginTimeoutMs: parseOptionalInteger(env.LUCKIN_OFFICIAL_LOGIN_TIMEOUT_MS) ?? DEFAULT_LOGIN_TIMEOUT_MS,
     installOnly: args.includes("--install-only"),
     runLogin: !args.includes("--skip-login") && !args.includes("--install-only"),
     enable: !args.includes("--no-enable") && !args.includes("--install-only"),
@@ -89,6 +101,7 @@ export function parseLuckinOfficialCliArgs(
       case "--no-enable":
       case "--install-only":
       case "--json":
+      case "--from-clipboard":
         break;
       case "--manifest-url":
         options.manifestUrl = requireValue(arg, next);
@@ -100,6 +113,18 @@ export function parseLuckinOfficialCliArgs(
         break;
       case "--config":
         options.configPath = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--token":
+        options.tokenText = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--token-file":
+        options.tokenPath = requireValue(arg, next);
+        index += 1;
+        break;
+      case "--login-timeout-ms":
+        options.loginTimeoutMs = parseRequiredInteger(arg, next);
         index += 1;
         break;
       default:
@@ -140,8 +165,22 @@ export async function setupLuckinOfficialCli(
 ): Promise<LuckinOfficialCliResult> {
   const install = await ensureLuckinOfficialCli(options, deps);
   let loginExitCode: number | undefined;
-  if (options.runLogin) {
-    loginExitCode = await (deps.runCommand ?? runCommand)(install.executablePath, ["login"]);
+  let tokenImport: LuckinTokenImportResult | undefined;
+  if (options.tokenText || options.fromClipboard) {
+    tokenImport = await (deps.importLuckinToken ?? importLuckinToken)(
+      {
+        tokenText: options.tokenText,
+        tokenPath: options.tokenPath ?? DEFAULT_TOKEN_PATH,
+        configPath: options.configPath,
+        enable: options.enable,
+        fromClipboard: options.fromClipboard
+      },
+      {}
+    );
+  } else if (options.runLogin) {
+    loginExitCode = deps.runCommand
+      ? await deps.runCommand(install.executablePath, ["login"])
+      : await runCommand(install.executablePath, ["login"], options.loginTimeoutMs);
     if (loginExitCode !== 0) {
       return {
         install,
@@ -158,10 +197,12 @@ export async function setupLuckinOfficialCli(
   }
 
   const enable = options.enable
-    ? await (deps.enableLuckinMcp ?? enableLuckinMcp)({
-        configPath: options.configPath,
-        dryRun: false
-      })
+    ? tokenImport
+      ? undefined
+      : await (deps.enableLuckinMcp ?? enableLuckinMcp)({
+          configPath: options.configPath,
+          dryRun: false
+        })
     : undefined;
   const doctor = await (deps.runLuckinDoctor ?? runLuckinDoctor)({
     configPath: options.configPath,
@@ -171,9 +212,10 @@ export async function setupLuckinOfficialCli(
   return {
     install,
     loginExitCode,
+    tokenImport,
     enable,
     doctor,
-    text: formatOfficialCliResult({ install, loginExitCode, enable, doctor })
+    text: formatOfficialCliResult({ install, loginExitCode, tokenImport, enable, doctor })
   };
 }
 
@@ -290,19 +332,33 @@ function assertZeroExit(label: string): (exitCode: number) => void {
   };
 }
 
-function runCommand(command: string, args: string[]): Promise<number> {
+function runCommand(command: string, args: string[], timeoutMs?: number): Promise<number> {
   return new Promise((resolveExit) => {
     const child = spawn(command, args, {
       stdio: "inherit"
     });
-    child.once("error", () => resolveExit(1));
-    child.once("exit", (code) => resolveExit(code ?? 1));
+    let timedOut = false;
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          child.kill();
+        }, timeoutMs)
+      : undefined;
+    child.once("error", () => {
+      if (timer) clearTimeout(timer);
+      resolveExit(1);
+    });
+    child.once("exit", (code) => {
+      if (timer) clearTimeout(timer);
+      resolveExit(timedOut ? 124 : code ?? 1);
+    });
   });
 }
 
 function formatOfficialCliResult(input: {
   install: LuckinOfficialCliInstallResult;
   loginExitCode?: number;
+  tokenImport?: LuckinTokenImportResult;
   enable?: LuckinEnableResult;
   doctor?: LuckinDoctorReport;
 }): string {
@@ -315,8 +371,12 @@ function formatOfficialCliResult(input: {
     lines.push(`官方登录命令退出码: ${input.loginExitCode}`);
   }
   if (input.loginExitCode !== undefined && input.loginExitCode !== 0) {
-    lines.push("登录未完成；请重新运行 npm run luckin:official-login 并完成浏览器授权。");
+    lines.push("登录未完成或超时；请重新运行 npm run luckin:official-login 并完成浏览器授权。");
+    lines.push("也可以复制开放平台 token 后运行: npm run luckin:official-login -- --from-clipboard");
     return lines.join("\n");
+  }
+  if (input.tokenImport) {
+    lines.push(`已导入瑞幸官方 token: ${input.tokenImport.tokenPath}`);
   }
   if (input.enable) {
     lines.push(input.enable.text);
@@ -336,6 +396,7 @@ function toJsonResult(result: LuckinOfficialCliResult): Omit<LuckinOfficialCliRe
   return {
     install: result.install,
     loginExitCode: result.loginExitCode,
+    tokenImport: result.tokenImport,
     enable: result.enable,
     doctor: result.doctor
   };
@@ -346,4 +407,20 @@ function requireValue(flag: string, value: string | undefined): string {
     throw new Error(`${flag} 缺少参数值`);
   }
   return value;
+}
+
+function parseOptionalInteger(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseRequiredInteger(flag: string, value: string | undefined): number {
+  const parsed = parseOptionalInteger(requireValue(flag, value));
+  if (parsed === undefined) {
+    throw new Error(`${flag} 必须是整数`);
+  }
+  return parsed;
 }

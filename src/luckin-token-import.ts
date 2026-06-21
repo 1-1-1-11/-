@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -9,6 +10,7 @@ export interface LuckinTokenImportOptions {
   tokenPath: string;
   configPath: string;
   enable: boolean;
+  fromClipboard?: boolean;
 }
 
 export interface LuckinTokenImportResult {
@@ -22,6 +24,7 @@ export interface LuckinTokenImportDeps {
   writeFile?: (path: string, content: string, options: { encoding: BufferEncoding; mode?: number }) => Promise<void>;
   mkdir?: (path: string, options: { recursive: true }) => Promise<unknown>;
   enableLuckinMcp?: typeof enableLuckinMcp;
+  readClipboard?: () => Promise<string>;
 }
 
 const DEFAULT_TOKEN_PATH = join(homedir(), ".my-coffee", "LUCKIN_MCP_TOKEN");
@@ -33,7 +36,8 @@ export function parseLuckinTokenImportArgs(
   const options: LuckinTokenImportOptions = {
     tokenPath: env.LUCKIN_MCP_TOKEN_FILE ?? DEFAULT_TOKEN_PATH,
     configPath: "config/coffee-price.config.json",
-    enable: args.includes("--enable")
+    enable: args.includes("--enable"),
+    fromClipboard: args.includes("--from-clipboard")
   };
 
   const tokenTextParts: string[] = [];
@@ -41,6 +45,9 @@ export function parseLuckinTokenImportArgs(
     const arg = args[index];
     const next = args[index + 1];
     if (arg === "--enable") {
+      continue;
+    }
+    if (arg === "--from-clipboard") {
       continue;
     }
     if (arg === "--token-file") {
@@ -99,7 +106,9 @@ export async function importLuckinToken(
   options: LuckinTokenImportOptions,
   deps: LuckinTokenImportDeps = {}
 ): Promise<LuckinTokenImportResult> {
-  const input = options.tokenText ?? deps.stdin ?? (await readStdin());
+  const input =
+    options.tokenText ??
+    (options.fromClipboard ? await (deps.readClipboard ?? readClipboard)() : deps.stdin ?? (await readStdin()));
   const token = extractLuckinToken(input);
   if (!token) {
     throw new Error("没有从输入中识别到 token；请粘贴原始 token、Bearer 头、JSON 或开放平台授权命令");
@@ -213,5 +222,29 @@ function readStdin(): Promise<string> {
     process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
     process.stdin.once("error", reject);
     process.stdin.once("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+  });
+}
+
+function readClipboard(): Promise<string> {
+  if (process.platform !== "win32") {
+    return Promise.reject(new Error("--from-clipboard 目前仅支持 Windows PowerShell 剪贴板读取"));
+  }
+  return new Promise((resolveClipboard, reject) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-Command", "Get-Clipboard -Raw"], {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code === 0) {
+        resolveClipboard(Buffer.concat(stdout).toString("utf8"));
+        return;
+      }
+      reject(new Error(Buffer.concat(stderr).toString("utf8").trim() || `Get-Clipboard exited ${code}`));
+    });
   });
 }
